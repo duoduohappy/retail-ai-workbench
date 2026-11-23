@@ -1,0 +1,1 @@
+{"trainEnd":"2026-10-25","testStart":"2026-10-26","testEnd":"2026-11-22","users":315,"k":5,"personalized":{"hitRate":0.6635,"recall":0.5354,"ndcg":0.3542,"coverage":1.0},"baseline":{"hitRate":0.5937,"recall":0.4794,"ndcg":0.3029},"note":"模拟偏好数据上的时间切分离线评估；排除已购商品；不代表线上转化或真实收益。"}

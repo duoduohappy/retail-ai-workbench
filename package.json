@@ -1,0 +1,1 @@
+{"name":"retail-ai-workbench","version":"1.0.0","private":true,"scripts":{"start":"python server.py","generate":"python scripts/generate_data.py","test":"node --test tests/core.test.cjs"}}
