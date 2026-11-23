@@ -1,1 +1,15 @@
-{"name":"retail-ai-workbench","version":"1.0.0","private":true,"scripts":{"start":"python server.py","generate":"python scripts/generate_data.py","test":"node --test tests/core.test.cjs"}}
+{
+  "name": "retail-ai-workbench",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "python server.py",
+    "generate": "python scripts/generate_data.py",
+    "test": "node --test tests/core.test.cjs tests/advanced.test.cjs tests/dom.test.cjs",
+    "test:python": "python -m unittest discover -s tests -p \"test_*.py\" -v",
+    "check": "node --check dist/app.js && node --check dist/core.js && node --check dist/advanced.js && node --check dist/advanced-ui.js"
+  },
+  "devDependencies": {
+    "jsdom": "26.0.0"
+  }
+}

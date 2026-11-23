@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.sqlite binary
+*.png binary
+*.mp4 binary
+*.wav binary

@@ -1,0 +1,18 @@
+{
+  "asset": "oat-drink-ai.png",
+  "productId": 1,
+  "productName": "鲜萃燕麦饮",
+  "generatedAt": "2026-11-23",
+  "generationMethod": "内置image_gen工具生成；非网页运行时调用",
+  "fictional": true,
+  "prompt": "Use case: product-mockup. Create a polished photorealistic retail marketing photograph for a fictional oat drink named 鲜萃燕麦饮. This is a fictional demo product, not an existing brand. Wide 16:9 composition, 1536x864 or similar landscape. One elegant matte teal 250ml oat drink carton with a simple oat stalk illustration and a small white rectangular brand label reading exactly RETAIL LAB. Set the carton on a pale stone plinth at the right third, with a few natural oats and a clear glass of oat drink. Deep forest teal studio background, premium soft side lighting, lifelike food and packaging textures. Leave the left half very dark and spacious for separately rendered Chinese marketing text. No people, no health claims, no certifications, no price, no additional words, no watermark. Show the complete package without cropping.",
+  "review": {
+    "productName": "已目视检查：鲜萃燕麦饮",
+    "specification": "已目视检查：250ml",
+    "brand": "虚构RETAIL LAB，图中标识带句点；非真实品牌授权素材",
+    "claims": "未加入健康功效、认证、产地或折扣声明",
+    "use": "仅用于虚构商品1的面试演示；非真实商业商品照片"
+  },
+  "videoMethod": "AI静态素材 + 确定性字幕/动效 + Windows本地语音合成；非生成式视频模型",
+  "onlineGenerationAvailable": false
+}

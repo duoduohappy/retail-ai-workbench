@@ -1,82 +1,1229 @@
-(()=>{
-'use strict';
-const D=globalThis.RETAIL_DATA,C=globalThis.RetailCore,$=s=>document.querySelector(s);
-const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money=(n,d=0)=>'¥'+(n/100).toLocaleString('zh-CN',{minimumFractionDigits:d,maximumFractionDigits:d});
-const pct=(n,d=1)=>(n*100).toFixed(d)+'%';
-const num=n=>Math.round(n).toLocaleString('zh-CN');
-const signed=n=>(n>=0?'+':'')+pct(n);
-const icon=(name)=>{const paths={overview:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',market:'M3 18V7l6 3 6-6 6 3v11 M3 21h18',strategy:'M8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M1 21v-3a7 7 0 0 1 14 0v3 M17 3a4 4 0 0 1 0 8 M18 15a6 6 0 0 1 4 6',content:'M3 5h13v14H3z M16 10l6-4v12l-6-4',research:'M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16 M16 16l6 6',projects:'M3 6h18v15H3z M8 6V2h8v4 M3 12h18'};return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">${paths[name].split(' M').map((p,i)=>`<path d="${i?'M':''}${p}"/>`).join('')}</svg>`;};
-const pages=[['overview','经营驾驶舱'],['market','市场与竞品雷达'],['strategy','会员与策略中心'],['content','AIGC内容工厂'],['research','市场研究助手'],['projects','项目与价值管理']];
-function read(key,fallback){try{return JSON.parse(localStorage.getItem('retail-v1-'+key))??fallback;}catch{return fallback;}}
-function save(key,value){try{localStorage.setItem('retail-v1-'+key,JSON.stringify(value));}catch{toast('浏览器存储不可用，本次修改仅在当前会话保留');}}
-let state={page:'overview',days:28,store:'all',tab:'members',member:28,segment:'all',query:'',plan:read('plan',null),tasks:read('tasks',[]),evidence:read('evidence',D.evidence),report:null,script:read('script',null),approved:read('approved',false),priceProduct:1,filterMarket:'all'};
-let memberRows=C.memberStats();state.member=memberRows.find(m=>C.recommend(m.id,1).length)?.id||1;
-if(!state.tasks.length)state.tasks=[{id:'P-001',title:'东区重点饮品缺货核查',owner:'门店运营',budget:2000,status:'进行中',metric:'SKU可售率、转化率；先核实库存记录',source:'经营异常',created:D.meta.asOf},{id:'P-002',title:'会员个性化推荐小范围试点',owner:'算法 / 会员运营',budget:5000,status:'待开始',metric:'离线NDCG、线上净毛利与退订率',source:'会员策略',created:D.meta.asOf},{id:'P-003',title:'完成首条商品视频模板验证',owner:'内容运营',budget:800,status:'已完成',metric:'可播放模板样片；实际投放与效果尚未验证',source:'内容生产',created:D.meta.asOf}];
-function toast(t){$('#toast').textContent=t;$('#toast').classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('show'),2800);}
-function modal(title,body){$('#modalTitle').textContent=title;$('#modalBody').innerHTML=body;$('#modal').showModal();}
-function download(name,content,type='text/plain;charset=utf-8'){const blob=content instanceof Blob?content:new Blob(['\ufeff',content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),15000);}
-function csv(rows){return rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');}
-const pill=(text,style='')=>`<span class="pill ${style}">${esc(text)}</span>`;
-const heading=(title,desc,buttons='')=>`<div class="page-heading"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${buttons}</div></div>`;
-const button=(id,label,primary=false)=>`<button class="${primary?'primary':'secondary'}" data-action="${id}">${label}</button>`;
-const card=(title,body,action='',sub='')=>`<section class="card"><div class="card-head"><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:''}</div>${action}</div>${body}</section>`;
-const table=(heads,rows)=>`<div class="table-wrap"><table><thead><tr>${heads.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
-const option=(value,label,current)=>`<option value="${esc(value)}" ${String(value)===String(current)?'selected':''}>${esc(label)}</option>`;
-function filterBar(){return `<div class="filters"><span>分析范围</span><select id="storeFilter" aria-label="选择门店">${option('all','全部门店',state.store)}${D.stores.map(s=>option(s.id,s.name,state.store)).join('')}</select><select id="daysFilter" aria-label="选择时间范围">${[7,28,90].map(n=>option(n,`最近${n}天`,state.days)).join('')}</select><span class="subtle">对比前一等长周期 · 退货计回原订单</span></div>`;}
-function kpi(label,value,change,sub,symbol){return `<div class="card kpi"><div class="kpi-top">${label}<span class="mini-icon">${symbol}</span></div><strong class="kpi-value">${value}</strong><div class="kpi-bottom"><span class="${change<0?'down':'up'}">${change===null?'窗口内计算':signed(change)}</span><span>${sub||'较前一周期'}</span></div></div>`;}
-function lineChart(rows,secondary){const w=720,h=220,pad=38,max=Math.max(...rows.map(x=>x.sales),...(secondary||[]).map(x=>x.sales),1)*1.12;const path=(rs)=>rs.map((v,i)=>`${i?'L':'M'}${pad+i*(w-pad-12)/Math.max(rs.length-1,1)},${h-28-v.sales/max*(h-48)}`).join(' ');const grid=[0,.5,1].map(k=>{const y=h-28-k*(h-48);return `<line class="gridline" x1="${pad}" y1="${y}" x2="${w}" y2="${y}"/><text x="0" y="${y+4}">${Math.round(max*k/100).toLocaleString('zh-CN')}</text>`;}).join('');return `<svg viewBox="0 0 ${w} ${h}" class="chart" role="img" aria-label="当前周期与前一周期净销售额趋势">${grid}<defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#15948a" stop-opacity=".16"/><stop offset="1" stop-color="#15948a" stop-opacity="0"/></linearGradient></defs><path d="${path(rows)} L${w-12},${h-28} L${pad},${h-28} Z" fill="url(#chartFill)"/>${secondary?`<path d="${path(secondary)}" fill="none" stroke="#bcc9d2" stroke-width="2" stroke-dasharray="5 4"/>`:''}<path d="${path(rows)}" fill="none" stroke="#148c80" stroke-width="2.6"/>${[0,Math.floor(rows.length/2),rows.length-1].map(i=>`<text x="${pad+i*(w-pad-12)/Math.max(rows.length-1,1)}" y="${h-5}" text-anchor="${i===rows.length-1?'end':'start'}">${rows[i]?.date.slice(5)}</text>`).join('')}</svg>`;}
-function overview(){const r=C.range(state.days,state.store),pr=C.range(state.days,state.store,state.days),a=C.summary(r),b=C.summary(pr),change=(key)=>b[key]?a[key]/b[key]-1:0;const stores=C.breakdown(r),prior=C.breakdown(pr),stock=C.stockouts(r),products=C.breakdown(r,'product');const sn=stock.reduce((n,x)=>n+x.days,0),decomp=C.decomposition(a,b);return heading('经营驾驶舱','从经营变化到行动建议，让每一项决策都有依据。',button('export-overview','导出经营简报')+button('diagnose','查看经营诊断',true))+filterBar()+`<div class="kpis">${kpi('净销售额',money(a.sales),change('sales'),null,'¥')}${kpi('商品毛利',money(a.gross),change('gross'),null,'▤')}${kpi('成交转化率',pct(a.conversion),change('conversion'),null,'↗')}${kpi('客单价',money(a.aov,2),change('aov'),null,'▧')}</div><div class="grid">${card('销售趋势',`<div class="card-body">${lineChart(C.series(r),C.series(pr))}<div class="data-note">${r.start} 至 ${r.end} · ${num(a.orders)} 笔订单 · ${num(a.visitors)} 人次客流 · 金额单位：元</div></div>`,`<div class="legend"><span>本周期</span><span>前一周期</span></div>`)}${card('需要关注的经营信号',`<div class="card-body"><div class="insight"><div class="insight-top">${pill('库存','orange')}<h3>${stock.length} 个门店商品存在零库存</h3></div><p>累计 ${sn} 个SKU门店日零库存，需核查实际可售与补货记录。</p></div><div class="insight"><div class="insight-top">${pill('转化',a.conversion<b.conversion?'red':'')}<h3>转化率${a.conversion<b.conversion?'下降':'上升'} ${Math.abs((a.conversion-b.conversion)*100).toFixed(2)} 个百分点</h3></div><p>与缺货同期出现属于关联线索，原因需要进一步验证。</p></div><div class="insight"><div class="insight-top">${pill('毛利','orange')}<h3>同步检查促销与商品结构</h3></div><p>价格、成本和销量共同影响毛利，建议按商品下钻。</p></div></div>`,button('create-task','创建核查任务'))}</div><div class="notice"><strong>经营提示：</strong>当前销售变化 ${money(a.sales-b.sales)}，其中按固定顺序分解的转化率贡献为 ${money(decomp.conversion)}。${decomp.note} <button class="text-link" data-action="diagnose">查看分析依据</button></div><div class="grid">${card('门店经营表现',table(['门店 / 区域','净销售额','周期变化','毛利率','贡献'],stores.filter(s=>state.store==='all'||s.id===+state.store).map(s=>{const old=prior.find(x=>x.id===s.id),delta=old.sales?s.sales/old.sales-1:0;return `<tr><td><button class="row-button" data-store="${s.id}">${s.name}</button><div class="mini-label">${s.region}</div></td><td>${money(s.sales)}</td><td class="${delta<0?'down':'up'}">${signed(delta)}</td><td>${pct(s.margin)}</td><td><div class="bar-track"><div class="bar-fill" style="width:${a.sales?s.sales/a.sales*100:0}%"></div></div></td></tr>`;})),`<span class="subtle">点击门店下钻</span>`)}${card('重点商品',table(['商品','净销售额','毛利率'],products.slice(0,5).map(p=>`<tr><td><button class="row-button" data-product-detail="${p.id}">${p.name}</button><div class="mini-label">${p.sku}</div></td><td>${money(p.sales)}</td><td>${pct(p.margin)}</td></tr>`)),`<button class="text-link" data-action="orders">订单明细</button>`)}</div>`;}
-function diagnose(){const r=C.range(state.days,state.store),a=C.summary(r),b=C.summary(C.range(state.days,state.store,state.days)),de=C.decomposition(a,b),stock=C.stockouts(r);modal('经营诊断 · 事实、假设与行动',`<div class="notice">${r.start} 至 ${r.end}，净销售变化 ${money(a.sales-b.sales)}。${de.note}</div>${table(['分解因素','销售额贡献','计算方式'],[['客流',de.traffic,'客流变化 × 旧转化率 × 旧客单价'],['转化率',de.conversion,'新客流 × 转化率变化 × 旧客单价'],['客单价',de.aov,'新客流 × 新转化率 × 客单价变化']].map(x=>`<tr><td>${x[0]}</td><td>${money(x[1])}</td><td>${x[2]}</td></tr>`))}<h3 style="margin-top:24px">可核查的零库存记录</h3>${table(['门店','商品','零库存天数'],stock.slice(0,10).map(x=>`<tr><td>${D.stores.find(s=>s.id===x.store).name}</td><td>${C.product(x.product).name}</td><td>${x.days}</td></tr>`))}<div class="hero-note">原因假设：缺货、竞品促销与商品结构变化可能影响经营。需要结合补货记录、可售率及对照试点验证，不能据同期变化认定因果。</div><p class="subtle">建议动作：先核实库存和门店执行，再设计试点。验收同时观察净毛利、转化率与会员退订，不预先承诺增长。</p>${button('orders','查看原始订单')}${button('create-task','创建核查任务',true)}`);}
-function market(){const productRows=D.products.filter(p=>state.filterMarket==='all'||p.category===state.filterMarket);return heading('市场与竞品雷达','把价格与活动变化，转化为有条件、可追溯的经营建议。',button('market-brief','生成市场简报',true))+`<div class="notice warn">当前竞品、价格及活动记录均为虚构样本，用于验证商品匹配与分析流程。未连接实时采价服务。</div><div class="filters"><span>商品品类</span><select id="marketCategory">${['all','饮料','零食','生鲜','日用'].map(v=>option(v,v==='all'?'全部品类':v,state.filterMarket)).join('')}</select><span class="subtle">同规格 · 单件活动价 · 不含多件满减与运费</span></div><div class="kpis">${kpi('监测商品',String(productRows.length),null,'标准SKU','▧')}${kpi('模拟竞品','1',null,'邻里优选（虚构）','◈')}${kpi('价格采样',num(D.prices.filter(p=>productRows.some(x=>x.id===p.product)).length),null,'按周采样记录','▤')}${kpi('重点价差商品',String(productRows.filter(p=>[1,3].includes(p.id)).length),null,'竞品价低于本方10%','¥')}</div>${card('同规格价格对比',table(['商品 / 规格','本方标价','竞品最新采样价','竞品价差','采样日期','行动'],productRows.map(p=>{const samples=D.prices.filter(x=>x.product===p.id),latest=samples.at(-1),gap=latest.price/p.price-1;return `<tr><td class="name-cell">${p.name}<div class="mini-label">${p.sku} · ${p.unit}</div></td><td>${money(p.price,2)}</td><td>${money(latest.price,2)}</td><td class="${gap<-.1?'down':''}">${signed(gap)}</td><td>${latest.date}</td><td><button class="text-link" data-compare="${p.id}">查看与模拟</button></td></tr>`;})),`<span class="subtle">${D.meta.asOf} 观察快照</span>`)}<div style="height:22px"></div><div class="grid equal">${card('跟价之前，先判断',`<div class="card-body report"><p>核对规格、渠道、会员门槛与活动期限，再检查本方库存、成本和价格形象。</p><p>价格差异仅是输入。促销决策还应比较毛利、库存消化与顾客体验。</p>${button('goto-pricing','进入促销模拟')}</div>`)}${card('来源与时效检查',`<div class="card-body"><div class="stat-line"><span>有效模拟来源记录</span><strong>${state.evidence.filter(e=>C.evidenceStatus(e)==='valid').length}</strong></div><div class="stat-line"><span>已过期活动</span><strong>${state.evidence.filter(e=>C.evidenceStatus(e)==='expired').length}</strong></div><p class="data-note">同源转载不构成独立验证，详细记录可在研究助手中查看。</p>${button('goto-research','查看证据库')}</div>`)}</div>`;}
-function strategy(){const a=memberRows.filter(m=>(state.segment==='all'||m.segment===state.segment)&&(!state.query||m.name.includes(state.query)||String(m.id).includes(state.query)));return heading('会员与策略中心','将客户分层、商品关联与促销决策，组合成可验证的运营策略。',button('export-members','导出会员分层')+button('evaluation','查看算法评估',true))+`<div class="tabs">${[['members','会员分层'],['recommend','商品推荐'],['pricing','定价与促销模拟']].map(([id,label])=>`<button class="tab ${state.tab===id?'active':''}" data-tab="${id}">${label}</button>`).join('')}</div>`+(state.tab==='members'?membersView(a):state.tab==='recommend'?recommendView():pricingView());}
-function membersView(rows){const counts=Object.fromEntries(['高价值','稳定复购','新客培育','待唤醒'].map(k=>[k,memberRows.filter(m=>m.segment===k).length]));return `<div class="kpis">${Object.entries(counts).map(([k,v])=>kpi(k,num(v),null,'近90天规则分层','♧')).join('')}</div><div class="filters"><input id="memberSearch" type="text" placeholder="搜索会员编号" value="${esc(state.query)}" aria-label="搜索会员"><select id="memberSegment">${['all',...Object.keys(counts)].map(v=>option(v,v==='all'?'全部分层':v,state.segment)).join('')}</select><span class="subtle">RFM规则分层 · 非流失概率或未来价值预测</span></div>${card('会员经营档案',table(['会员','分层','距最近购买','近90天频次','近90天净消费','偏好','行动'],rows.slice(0,60).map(m=>`<tr><td class="name-cell">${m.name}</td><td>${pill(m.segment,m.segment==='待唤醒'?'orange':'')}</td><td>${m.recency===999?'未购买':m.recency+'天'}</td><td>${m.frequency} 笔</td><td>${money(m.monetary)}</td><td>${m.preference}</td><td><button class="text-link" data-member="${m.id}">查看推荐</button></td></tr>`)),`<span class="subtle">${rows.length} 名符合条件 · 展示前60名</span>`)}<p class="data-note">规则：R＞30天为待唤醒；其余会员中F≥12且M≥300元为高价值，F≥5为稳定复购，其余为新客培育。未购买会员归入待唤醒，作为演示规则。</p>`;}
-function recommendView(){const m=memberRows.find(x=>x.id===+state.member),store=state.store==='all'?1:+state.store,items=C.recommend(state.member,store,6);return `<div class="filters"><span>目标会员</span><select id="recMember">${memberRows.map(m=>option(m.id,m.name+' · '+m.preference,state.member)).join('')}</select><span>可售门店</span><select id="recStore">${D.stores.map(s=>option(s.id,s.name,store)).join('')}</select></div><div class="notice"><strong>${m.name}</strong> · ${m.segment} · 近90天偏好 ${m.preference}。使用 ${D.evaluation.trainEnd} 截止的商品篮关联模型与训练期购买记录；过滤训练期已购商品和观察日门店零库存。该离线模型快照未做在线更新。</div><div class="product-list">${items.length?items.map(p=>`<div class="product-card"><div class="product-art"><div class="package-art" style="background:${p.color}">RETAIL<br>${p.category}</div></div><h3>${p.name}</h3><span class="price">${money(p.price,2)}</span><p>${p.reason}</p><div class="stat-line"><span>可售库存</span><strong>${p.stock}件</strong></div><button class="text-link" data-promote="${p.id}">加入促销模拟</button></div>`).join(''):'<div class="empty">暂无满足未购与库存条件的商品。可换一个会员或门店。</div>'}</div><div class="notice" style="margin-top:22px">推荐逻辑：购物篮共现余弦相似度 × log(1+会员购买量)，无关联候选时以热门商品回退。解释由计算规则生成。离线评估不代表线上转化提升。</div>`;}
-function pricingView(){const p=C.product(state.priceProduct),inventory=C.sum(D.inventory.filter(i=>i[0]===D.meta.asOf&&i[2]===p.id),i=>i[3]);return `<div class="grid equal">${card('促销情景配置',`<div class="card-body"><form id="pricingForm"><div class="form-grid"><label class="field wide">商品<select name="productId" id="priceProduct">${D.products.map(p=>option(p.id,p.name,state.priceProduct)).join('')}</select></label><label class="field">候选单价（元）<input name="price" type="number" min="0.01" step="0.01" value="${(p.price/100*.92).toFixed(2)}" required></label><label class="field">基准周期销量（件）<input name="baseUnits" type="number" min="1" max="100000" step="1" value="100" required></label><label class="field">假设价格弹性<input name="elasticity" type="number" min="-5" max="0" step="0.1" value="-1.3" required></label><label class="field">可售库存上限（件）<input name="stock" type="number" min="0" max="1000000" step="1" value="${inventory}" required></label><label class="field">额外活动费用（元）<input name="budget" type="number" min="0" max="1000000" step="0.01" value="0" required></label><label class="field">最低费用后贡献率（%）<input name="minMargin" type="number" min="0" max="99" step="1" value="15" required></label></div><p class="data-note">标价 ${money(p.price,2)} · 固定单位成本 ${money(p.cost,2)}。销量与弹性为手动情景假设，可根据真实试点替换。</p><button class="primary" type="submit">计算与比较</button></form></div>`)}${card('情景结果',`<div class="card-body" id="pricingResult"><div class="empty">调整左侧假设，比较销量、毛利与库存约束。</div></div>`)}</div><div class="notice warn">恒定弹性需求假设：Q = Q₀ × (P/P₀)^ε，并受可售库存约束。费用后贡献 = 预计销售额 − 商品成本 − 额外活动费用。此处没有估计真实价格弹性，也没有预测真实经营增长。</div>`;}
-function computePricing(form){const fd=new FormData(form),args=Object.fromEntries(fd);for(const k in args)args[k]=+args[k];args.price=Math.round(args.price*100);args.budget=Math.round(args.budget*100);args.minMargin/=100;const r=C.pricing(args),p=C.product(args.productId);state.plan={...args,...r,productName:p.name,created:D.meta.asOf,id:'CAM-'+String(args.productId).padStart(3,'0')};save('plan',state.plan);$('#pricingResult').innerHTML=`${pill(r.valid?'满足当前约束':'未满足约束',r.valid?'':'red')}<div class="cost-grid"><div>情景销量<strong>${num(r.units)}件</strong></div><div>预计销售额<strong>${money(r.sales)}</strong></div><div>费用后贡献<strong>${money(r.gross)}</strong></div></div><div class="stat-line"><span>费用后贡献率</span><strong>${pct(r.margin)}</strong></div><div class="stat-line"><span>原价情景商品毛利</span><strong>${money(r.baselineGross)}</strong></div><div class="stat-line"><span>与原价情景差额</span><strong class="${r.delta<0?'down':'up'}">${money(r.delta)}</strong></div><p class="data-note">原价情景使用同一基准销量与库存上限，不另计活动费用。${r.note}</p><div class="actions" style="margin-top:18px">${r.valid?button('plan-to-content','生成活动内容',true):''}${button('plan-to-task','创建试点任务')}${button('export-plan','导出方案')}</div>`;}
-function content(){const p=C.product(state.plan?.productId||1);return heading('AIGC内容工厂','从商品事实与活动策略出发，生产可审核、可复用的营销素材。',button('content-export','导出脚本与审核记录'))+`<div class="notice">${state.plan?`已关联活动 <strong>${state.plan.id}</strong> · ${esc(state.plan.productName)} · 候选单价 ${money(state.plan.price,2)}。该价格来自情景模拟，发布前需要业务审批。`:'当前使用商品资料中的标价，可从策略中心带入活动。'} 内容默认由模板生成；可选连接本地大模型服务生成脚本。</div><div class="grid equal">${card('内容生产配置',`<div class="card-body"><form id="contentForm"><div class="form-grid"><label class="field wide">商品<select id="contentProduct" name="productId">${D.products.map(x=>option(x.id,x.name,p.id)).join('')}</select></label><label class="field">目标人群<select name="audience"><option>通勤与日常消费人群</option><option>高价值会员</option><option>待唤醒会员</option></select></label><label class="field">品牌语气<select name="tone"><option>简洁、友好、克制</option><option>轻快、有生活感</option></select></label><label class="field wide">核心卖点（由运营确认）<input type="text" name="sellingPoint" value="适合日常随手选购" maxlength="60" required></label><label class="field wide">活动说明<input type="text" name="terms" value="演示商品与价格；以门店实际信息为准" maxlength="100" required></label></div><div class="actions" style="margin-top:18px"><button type="submit" class="primary">生成模板脚本</button>${button('llm-script','使用已配置大模型')}</div></form><div id="scriptBox" class="report" style="margin-top:20px">${state.script?scriptHtml(state.script):'<p class="subtle">生成后显示分镜、字幕及商品事实核对信息。</p>'}</div></div>`)}${card('视频预览与交付',`<div class="card-body"><div class="video-frame"><video id="sampleVideo" controls preload="metadata" src="assets/retail-demo.mp4" poster="assets/video-poster.png"></video></div><p class="data-note">内置可播放样片：鲜萃燕麦饮 · 模板视频 · 15秒。自定义视频使用已审核脚本在浏览器中合成，导出为无声WebM；配音稿另行导出。</p><div class="checklist"><label><input type="checkbox" id="approveContent" ${state.approved?'checked':''}> 已核对当前脚本的商品、价格和活动说明</label></div><div class="actions">${button('render-video','合成当前脚本视频',true)}<a class="secondary" href="assets/retail-demo.mp4" download="商品营销样片.mp4">下载内置样片</a></div><p id="renderStatus" class="data-note">自定义合成将在此处显示实际耗时与成片状态。</p><div class="cost-grid"><div>模板样片<strong>15 秒</strong></div><div>当前生产方式<strong style="font-size:15px">模板与规则</strong></div><div>模型费用<strong>未接入</strong></div></div></div>`)}</div><div class="notice warn">视频为模板排版合成，商品图形为程序绘制的示意包装。当前未接入图像或视频生成模型；生成式脚本接口只在配置了模型的本地服务中可用。所有成片仅供面试演示。</div>`;}
-function scriptHtml(s){return `<h3>${esc(s.productName)} · ${s.mode==='llm'?'模型生成':'模板生成'}</h3><p class="subtle">目标：${esc(s.audience)} · 展示单价 ${money(s.price,2)}</p>${table(['时间','画面与字幕','配音稿'],s.scenes.map(x=>`<tr><td>${esc(x.time)}</td><td>${esc(x.caption)}</td><td>${esc(x.voice)}</td></tr>`))}<p class="data-note">活动说明：${esc(s.terms)}</p>`;}
-function buildScript(form){const fd=new FormData(form),p=C.product(fd.get('productId'));return {productId:p.id,productName:p.name,price:state.plan?.productId===p.id?state.plan.price:p.price,mode:'template',audience:fd.get('audience'),tone:fd.get('tone'),terms:fd.get('terms'),created:new Date().toISOString(),scenes:[{time:'0–5秒',caption:`日常好物 · ${p.name}`,voice:`今天为你介绍${p.name}。`},{time:'5–10秒',caption:String(fd.get('sellingPoint')),voice:`${fd.get('sellingPoint')}，按需选购。`},{time:'10–15秒',caption:`到店看看 · ${money(state.plan?.productId===p.id?state.plan.price:p.price,2)}`,voice:'欢迎到店了解，以门店实际信息为准。'}]};}
-function researchView(){const report=state.report;return heading('市场研究助手','让研究结论回到证据，让过期信息与同源转载可识别。',button('add-evidence','添加证据')+button('export-report','导出研究报告'))+`<div class="grid"><div>${card('发起一次有依据的研究',`<div class="card-body"><form id="researchForm"><label class="field">研究问题<textarea name="question" required maxlength="300">东区近期饮品经营变化有哪些线索？应如何设计下一步验证？</textarea></label><div class="actions" style="margin-top:16px"><button class="primary" type="submit">运行证据工作流</button>${pill('受控资料库 · 无实时检索','gray')}</div></form><div id="researchProgress"></div></div>`)}<div style="height:22px"></div>${card(report?'研究报告 · 可追溯结论':'等待研究任务',`<div class="card-body report" id="researchReport">${report?reportHtml(report):'<div class="empty">工作流将筛选有效证据、识别同源转载，并将经营计算结果写入报告。</div>'}</div>`)}</div>${card('证据库',`<div class="card-body">${state.evidence.map(e=>{const status=C.evidenceStatus(e);return `<div class="evidence"><div class="insight-top">${pill(e.id)}${pill(status==='valid'?'时效有效':status==='expired'?'已过期':'未来资料',status==='valid'?'':'orange')}${e.synthetic?pill('模拟','gray'):pill('用户提供','gray')}</div><h3><button class="row-button" data-evidence="${esc(e.id)}">${esc(e.title)}</button></h3><p>${esc(e.text.slice(0,85))}${e.text.length>85?'…':''}</p><div class="evidence-meta">${esc(e.published)} · ${esc(e.publisher)}<br>原始信源组 ${esc(e.group)}</div></div>`;}).join('')}</div>`,`<span class="subtle">${state.evidence.length} 条</span>`)}</div><div class="notice warn">工作流会执行日期检查和同源去重；导入文本的事实真实性需人工核实。报告使用结构化模板，未调用大模型，且不代表完成了互联网调研。</div>`;}
-function reportHtml(r){return `<h3>${esc(r.question)}</h3><p>${esc(r.summary)}</p><h3>证据与结论</h3>${r.claims.map(c=>`<blockquote>${esc(c.text)} ${c.evidence.map(id=>`<button class="citation" data-evidence="${esc(id)}">${esc(id)}</button>`).join('')}<div class="mini-label">${c.type} · ${c.synthetic?'模拟证据':'用户提供，未独立核实'}</div></blockquote>`).join('')||'<p>有效证据不足，暂不输出外部事实结论。</p>'}<h3>待验证判断</h3><p>缺货与转化变化存在同期关系；竞争活动的独立影响尚未识别。先核查商品可售与活动执行，再开展受控试点。</p><h3>行动建议</h3><p>${esc(r.recommendation)}</p><h3>排除与质量检查</h3>${r.excluded.map(e=>`<p>${pill(e.id,'gray')} ${esc(e.title)}：${esc(e.reason)}</p>`).join('')||'<p>无排除记录。</p>'}<p class="data-note">${esc(r.limitations)}</p>`;}
-function projects(){const sumBudget=state.tasks.reduce((n,t)=>n+t.budget,0),done=state.tasks.filter(t=>t.status==='已完成').length;return heading('项目与价值管理','把业务目标、交付责任与验证方式放进同一张执行视图。',button('roadmap','90天落地方案')+button('new-task','新建项目',true))+`<div class="kpis">${kpi('演示项目',String(state.tasks.length),null,'本浏览器保存','▤')}${kpi('计划预算',money(sumBudget*100),null,'规划数字，非实际发生','¥')}${kpi('完成占比',pct(done/state.tasks.length),null,'任务状态，不代表收益实现','◈')}${kpi('实际业务收益','待验证',null,'需真实试点与对照','▧')}</div><div class="board">${['待开始','进行中','已完成'].map(status=>`<section class="column"><h3>${status} <span class="subtle">${state.tasks.filter(t=>t.status===status).length}</span></h3>${state.tasks.filter(t=>t.status===status).map(t=>`<article class="task">${pill(t.id,'gray')}<h3 style="margin-top:12px">${esc(t.title)}</h3><p>${esc(t.owner)} · 预算 ¥${num(t.budget)}</p><p>验收：${esc(t.metric)}</p><p>来源：${esc(t.source)}</p><select aria-label="${esc(t.title)}的状态" data-task-status="${esc(t.id)}">${['待开始','进行中','已完成'].map(x=>option(x,x,t.status)).join('')}</select></article>`).join('')}</section>`).join('')}</div><div style="height:23px"></div><div class="grid equal">${card('投入产出估算器',`<div class="card-body"><form id="roiForm"><div class="form-grid"><label class="field">周期新增净销售额（元）<input type="number" name="sales" min="0" max="100000000" value="10000" required></label><label class="field">贡献毛利率（%）<input type="number" name="margin" min="0" max="100" value="30" required></label><label class="field">可实现的节省费用（元）<input type="number" name="saving" min="0" max="10000000" value="0" required></label><label class="field">全部增量投入（元）<input type="number" name="cost" min="0.01" max="10000000" step="0.01" value="5000" required></label></div><button class="primary" type="submit" style="margin-top:18px">计算假设ROI</button></form><div id="roiResult"></div><p class="data-note">ROI =（新增销售 × 贡献毛利率 + 可实现节省 − 全部增量投入）÷ 全部增量投入。节省不包含不能兑现的人时；额外投入应包含优惠、模型、工程和审核费用，并避免重复扣减。</p></div>`)}${card('向管理层汇报什么',`<div class="card-body"><div class="stat-line"><span>当前问题</span><strong>缺货、转化与毛利</strong></div><div class="stat-line"><span>优先策略</span><strong>先核实，再受控试点</strong></div><div class="stat-line"><span>投入边界</span><strong>分阶段预算与验收</strong></div><div class="stat-line"><span>继续或停止</span><strong>看证据与净收益</strong></div><p class="data-note">本页为演示管理方案，不代表真实团队管理经历或企业已确认预算。</p>${button('management-export','导出管理摘要')}</div>`)}</div>`;}
-function render(){state.page=location.hash.slice(1)||'overview';if(!pages.some(p=>p[0]===state.page))state.page='overview';$('#nav').innerHTML=pages.map(([id,label])=>`<a href="#${id}" class="${state.page===id?'active':''}">${icon(id)}${label}</a>`).join('');$('#breadcrumb').textContent=pages.find(p=>p[0]===state.page)[1];$('#main').innerHTML=({overview,market,strategy,content,research:researchView,projects}[state.page])();window.scrollTo(0,0);}
-function go(page,tab){if(tab)state.tab=tab;if(location.hash==='#'+page)render();else location.hash=page;}
-function dictionary(){modal('指标字典与数据边界',table(['指标','计算方式','口径与限制'],C.metrics.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join('')}</tr>`))+`<div class="notice" style="margin-top:20px">全部零售业务数据由种子 ${D.meta.seed} 可复现生成。金额计算使用整数分。当前浏览器内修改存于localStorage，不跨设备同步。</div>`);}
-function guide(){modal('面试演示路线 · 建议10–15分钟',`<div class="report"><p>作品定位：针对岗位自主开发的演示项目，业务、顾客与竞品均为虚构。</p><ol><li>经营驾驶舱：从净销售变化下钻，展示固定顺序贡献分解与原始订单。</li><li>市场与竞品雷达：核对同规格价格、活动条件和来源时效。</li><li>会员与策略中心：展示分层、推荐基线与时间切分离线评估；计算促销情景。</li><li>AIGC内容工厂：带入活动商品与价格，生成脚本、审核并导出视频。</li><li>市场研究助手：运行证据检查，展示过期活动与同源转载的排除结果。</li><li>项目与价值管理：将建议形成任务，说明预算、验收方式与90天试点计划。</li></ol><p>能力边界：统计与推荐可本地执行；报告使用规则模板，外部采价与检索未连接。大模型脚本为可选本地接口。所有离线结果均不代表真实商业收益。</p></div>`);}
-function showEvaluation(){const e=D.evaluation;modal('推荐算法 · 时间切分离线评估',`<div class="notice">训练截止 ${e.trainEnd}；测试窗口 ${e.testStart} 至 ${e.testEnd}。${e.users} 名训练期已有历史且测试期存在未购商品的会员；K=${e.k}。</div>${table(['指标','热门推荐基线','商品篮关联推荐'],[['HitRate@5','hitRate'],['Recall@5','recall'],['NDCG@5','ndcg']].map(([label,key])=>`<tr><td>${label}</td><td>${pct(e.baseline[key],2)}</td><td>${pct(e.personalized[key],2)}</td></tr>`))}<div class="report"><p>模型：训练期购物篮共现余弦相似度 × log(1+购买量)，候选排除训练期已购。基线同样排除训练期已购，按训练期净销量排序；无关联候选以热门回退。离线评估未过滤库存，界面推荐额外过滤观察日库存。</p><p>HitRate衡量至少命中一个商品的用户占比；Recall衡量相关商品找回比例；NDCG衡量命中位置。此测试集只涵盖符合条件的会员与新购商品。</p><p>覆盖率：${pct(e.personalized.coverage)}。固定随机种子 ${D.meta.seed}，执行 scripts/generate_data.py 可重建评估。</p><div class="notice warn">模拟数据预设了顾客品类偏好与部分搭配关系。此评估用于验证算法链路，不证明真实零售适用性或线上转化提升。</div></div>`);}
-function rawOrders(productId){const rows=D.orders.filter(o=>C.includes(o,C.range(state.days,state.store))&&(!productId||o.items.some(i=>i[0]===productId)));modal('原始订单 · '+(productId?C.product(productId).name:'当前分析范围'),`<p class="subtle">共 ${rows.length} 笔，显示最近60笔。退款计回订单日期；可导出当前筛选范围的全部订单明细。</p>${button('export-orders','导出当前窗口全部明细')}<div style="height:15px"></div>${table(['订单','日期','门店','净销售额','商品明细'],rows.slice(-60).reverse().map(o=>`<tr><td>${o.id}</td><td>${o.date}</td><td>${D.stores.find(s=>s.id===o.store).name}</td><td>${money(C.orderNet(o),2)}</td><td>${o.items.map(i=>`${C.product(i[0]).name} ×${i[1]} / 退${i[3]}`).join('<br>')}</td></tr>`))}`);}
-function showEvidence(id){const e=state.evidence.find(e=>e.id===id);if(!e)return;modal(`${e.id} · ${e.title}`,`<div class="report"><p>${pill(e.synthetic?'模拟证据':'用户提供，未独立核实','orange')} ${pill(C.evidenceStatus(e)==='valid'?'时效有效':'不在有效期','gray')}</p><p>${esc(e.text)}</p><p>发布者：${esc(e.publisher)}<br>发布日期：${esc(e.published)}<br>有效截止：${esc(e.expires||'未声明')}<br>原始信源组：${esc(e.group)}</p>${e.url?`<p>用户提供的来源：<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">打开来源</a></p>`:''}<p class="data-note">日期有效不等于事实可信。多个记录若来自相同原始信息，只保留一个作为独立来源。</p></div>`);}
-function taskForm(defaultTitle='',source='人工创建'){modal('创建可验收的试点任务',`<form id="taskForm"><div class="form-grid"><label class="field wide">任务名称<input name="title" required maxlength="80" value="${esc(defaultTitle)}"></label><label class="field">负责人<input name="owner" required maxlength="50" value="业务运营 / 技术"></label><label class="field">计划预算（元）<input name="budget" type="number" min="0" max="10000000" value="2000" required></label><label class="field wide">验收指标<textarea name="metric" required maxlength="200">核查业务基线；定义对照、观察周期、净毛利及负向指标；达成条件后再扩大。</textarea></label><input type="hidden" name="source" value="${esc(source)}"></div><button class="primary" type="submit" style="margin-top:18px">保存任务</button></form>`);}
-function reportText(r){return `# ${r.question}\n\n${r.summary}\n\n## 证据\n${r.claims.map(c=>`- ${c.text} [${c.evidence.join(',')}]（${c.synthetic?'模拟证据':'用户提供，未独立核实'}）`).join('\n')}\n\n## 行动建议\n${r.recommendation}\n\n## 排除记录\n${r.excluded.map(e=>`${e.id} ${e.reason}`).join('\n')}\n\n## 证据目录\n${r.accepted.map(e=>`${e.id} | ${e.title} | ${e.publisher} | ${e.published} | ${e.url||'内置模拟资料，无外部链接'}`).join('\n')}\n\n${r.limitations}`;}
-function overviewText(){const a=C.summary(C.range(state.days,state.store)),b=C.summary(C.range(state.days,state.store,state.days)),de=C.decomposition(a,b);return `# 经营简报（模拟数据）\n观察截至 ${D.meta.asOf}，窗口${state.days}天，门店：${state.store==='all'?'全部':D.stores.find(s=>s.id===+state.store).name}\n\n净销售额 ${money(a.sales,2)}；商品毛利 ${money(a.gross,2)}；订单 ${a.orders}；转化率 ${pct(a.conversion)}；客单价 ${money(a.aov,2)}。\n\n较前周期净销售变化 ${money(a.sales-b.sales,2)}。\n客流贡献 ${money(de.traffic,2)}；转化率贡献 ${money(de.conversion,2)}；客单价贡献 ${money(de.aov,2)}。\n${de.note}\n\n行动：核查重点SKU零库存与补货；结合价格及会员策略设计受控试点。\n\n边界：全部业务数据为虚构；不承诺真实收益。` ;}
-const actions={
-'diagnose':diagnose,'orders':()=>rawOrders(),'guide':guide,'evaluation':showEvaluation,
-'export-overview':()=>download('经营简报.md',overviewText()),
-'export-orders':()=>{const rows=[['订单ID','日期','门店','会员ID','商品SKU','数量','退货数量','折后单价(分)','净销售额(分)']];for(const o of D.orders)if(C.includes(o,C.range(state.days,state.store)))for(const i of o.items)rows.push([o.id,o.date,D.stores.find(s=>s.id===o.store).name,o.member||'',C.product(i[0]).sku,i[1],i[3],i[2],(i[1]-i[3])*i[2]]);download('订单明细.csv',csv(rows),'text/csv;charset=utf-8');},
-'export-members':()=>download('会员分层.csv',csv([['会员ID','分层','最近购买间隔','近90天频次','近90天净消费(分)','偏好'],...memberRows.map(m=>[m.id,m.segment,m.recency,m.frequency,m.monetary,m.preference])]),'text/csv;charset=utf-8'),
-'create-task':()=>taskForm('重点商品缺货与转化变化核查','经营驾驶舱'),
-'new-task':()=>taskForm(),
-'goto-pricing':()=>go('strategy','pricing'),'goto-research':()=>go('research'),
-'plan-to-content':()=>{state.script=null;state.approved=false;save('script',null);save('approved',false);go('content');},
-'plan-to-task':()=>taskForm(`${state.plan.productName}促销受控试点`,state.plan.id),
-'export-plan':()=>download('促销情景方案.json',JSON.stringify(state.plan,null,2),'application/json;charset=utf-8'),
-'market-brief':()=>{state.report=C.research('竞品价格与活动变化，应如何转化为经营动作？',state.evidence);go('research');},
-'export-report':()=>{if(!state.report){toast('请先运行一次研究工作流');return;}download('市场研究报告.md',reportText(state.report));},
-'content-export':()=>{if(!state.script){toast('请先生成脚本');return;}download('营销脚本与审核记录.json',JSON.stringify({script:state.script,approved:state.approved,source:state.plan?.id||'商品标价',note:'人工核对状态仅在本浏览器保存；配音稿尚未合成音频。'},null,2),'application/json;charset=utf-8');},
-'add-evidence':()=>modal('添加研究证据',`<form id="evidenceForm"><div class="form-grid"><label class="field wide">标题<input name="title" required maxlength="100"></label><label class="field">发布者<input name="publisher" required maxlength="60"></label><label class="field">原始信源组<input name="group" required maxlength="50" placeholder="相同原始来源请用同一组名"></label><label class="field">发布日期<input type="date" name="published" required value="${D.meta.asOf}"></label><label class="field">有效截止（可选）<input type="date" name="expires"></label><label class="field wide">来源网址（可选）<input name="url" type="url" placeholder="https://"></label><label class="field wide">原文摘录<textarea name="text" required maxlength="3000"></textarea></label></div><p class="data-note">资料仅保存于本浏览器。请自行核实来源和摘录，程序不访问该网址。</p><button class="primary" type="submit">加入证据库</button></form>`),
-'roadmap':()=>modal('入职90天落地方案 · 待业务确认',`<div class="timeline"><div><h3>前30天 · 明确问题</h3><p>访谈零售与运营负责人；盘点系统、数据质量、团队和供应商；统一指标与基线。</p><p>交付：业务问题清单、数据字典、优先级与试点建议。</p></div><div><h3>31–60天 · 受控试点</h3><p>选定明确业务负责人和试点范围；先跑基线，再上线策略；记录异常、成本与业务反馈。</p><p>交付：可运行试点、验收记录、阶段预算。</p></div><div><h3>61–90天 · 决定推广</h3><p>评估净收益、稳定性和运营负担；对未达标方案调整或停止；形成推广与人员计划。</p><p>交付：效果评估、阶段复盘、下一阶段投入建议。</p></div></div><p class="data-note">具体团队、预算与时间安排需结合实际数据基础确定，此方案不代表企业现状。</p>`),
-'management-export':()=>download('管理层阶段汇报.md',`# 零售AI试点阶段汇报（演示）\n\n${overviewText()}\n\n## 项目状态\n${state.tasks.map(t=>`- ${t.id} ${t.title}｜${t.status}｜负责人${t.owner}｜计划预算¥${t.budget}｜验收${t.metric}`).join('\n')}\n\n## 需要决策\n确认业务负责人、试点范围、阶段预算与验收口径。真实业务收益待实验验证，预算为演示规划值。`),
-'render-video':()=>renderVideo(),
-'llm-script':()=>llmScript()
-};
-document.addEventListener('click',e=>{const a=e.target.closest('[data-action]');if(a){actions[a.dataset.action]?.();return;}const tab=e.target.closest('[data-tab]');if(tab){state.tab=tab.dataset.tab;render();return;}const s=e.target.closest('[data-store]');if(s){state.store=s.dataset.store;render();return;}const p=e.target.closest('[data-product-detail]');if(p){rawOrders(+p.dataset.productDetail);return;}const m=e.target.closest('[data-member]');if(m){state.member=+m.dataset.member;state.tab='recommend';render();return;}const cmp=e.target.closest('[data-compare]');if(cmp){state.priceProduct=+cmp.dataset.compare;const p=C.product(state.priceProduct);modal(p.name+' · 价格核对',`<div class="report"><p>规格：${p.unit}。竞品价格为模拟采样，按周记录，活动条件为同规格单件活动价。</p><p>本方标价 ${money(p.price,2)}；商品成本 ${money(p.cost,2)}。价格差不能单独决定跟价，需查看库存和贡献约束。</p>${button('goto-pricing','打开该商品促销模拟',true)}</div>`);return;}const pro=e.target.closest('[data-promote]');if(pro){state.priceProduct=+pro.dataset.promote;state.tab='pricing';render();return;}const ev=e.target.closest('[data-evidence]');if(ev){if($('#modal').open)$('#modal').close();showEvidence(ev.dataset.evidence);}});
-document.addEventListener('change',e=>{const el=e.target;if(el.id==='storeFilter'||el.id==='recStore'){state.store=el.value;render();}if(el.id==='daysFilter'){state.days=+el.value;render();}if(el.id==='marketCategory'){state.filterMarket=el.value;render();}if(el.id==='memberSegment'){state.segment=el.value;render();}if(el.id==='recMember'){state.member=+el.value;render();}if(el.id==='priceProduct'){state.priceProduct=+el.value;render();}if(el.id==='approveContent'){state.approved=el.checked;save('approved',state.approved);}if(el.id==='contentProduct'){state.script=null;state.approved=false;save('script',null);save('approved',false);$('#scriptBox').innerHTML='<p class="subtle">商品已改变，请重新生成脚本。</p>';$('#approveContent').checked=false;}if(el.dataset.taskStatus){state.tasks.find(t=>t.id===el.dataset.taskStatus).status=el.value;save('tasks',state.tasks);render();toast('任务状态已保存');}});
-document.addEventListener('input',e=>{if(e.target.id==='memberSearch'){state.query=e.target.value;const start=e.target.selectionStart;render();$('#memberSearch').focus();$('#memberSearch').setSelectionRange(start,start);}if(e.target.closest('#contentForm')){state.approved=false;save('approved',false);if($('#approveContent'))$('#approveContent').checked=false;}});
-document.addEventListener('submit',async e=>{const f=e.target;e.preventDefault();if(f.id==='pricingForm')computePricing(f);if(f.id==='contentForm'){state.script=buildScript(f);state.approved=false;save('script',state.script);save('approved',false);$('#approveContent').checked=false;$('#scriptBox').innerHTML=scriptHtml(state.script);toast('脚本已生成，请完成商品与活动核对');}if(f.id==='taskForm'){const fd=new FormData(f);state.tasks.push({id:'P-'+Date.now().toString().slice(-6),title:fd.get('title'),owner:fd.get('owner'),budget:+fd.get('budget'),metric:fd.get('metric'),source:fd.get('source'),created:new Date().toISOString().slice(0,10),status:'待开始'});save('tasks',state.tasks);$('#modal').close();go('projects');toast('试点任务已创建');}if(f.id==='evidenceForm'){const fd=new FormData(f);const url=String(fd.get('url')||'');if(url&&!/^https?:\/\//i.test(url)){toast('来源网址仅支持http或https');return;}state.evidence.push({id:'U'+Date.now().toString().slice(-7),title:fd.get('title'),publisher:fd.get('publisher'),group:fd.get('group'),published:fd.get('published'),expires:fd.get('expires')||null,text:fd.get('text'),url,kind:'用户资料',synthetic:false});save('evidence',state.evidence);$('#modal').close();render();toast('资料已加入，真实性待人工核实');}if(f.id==='researchForm'){const q=new FormData(f).get('question'),steps=['读取研究问题与资料','检查发布时间与活动期限','按原始信源去重','汇总经营计算与证据','生成报告与限制说明'];const btn=f.querySelector('button');btn.disabled=true;for(let i=0;i<steps.length;i++){if(!$('#researchProgress'))break;$('#researchProgress').innerHTML=steps.slice(0,i+1).map(s=>`<div class="research-step"><span class="step-check">✓</span>${s}</div>`).join('');await new Promise(r=>setTimeout(r,180));}state.report=C.research(q,state.evidence);if(state.page==='research'){$('#researchReport').innerHTML=reportHtml(state.report);$('#researchReport').closest('.card').querySelector('h2').textContent='研究报告 · 可追溯结论';btn.disabled=false;}toast('研究完成：已记录有效、过期与同源信息');}if(f.id==='roiForm'){const fd=new FormData(f),sales=+fd.get('sales'),margin=+fd.get('margin')/100,saving=+fd.get('saving'),cost=+fd.get('cost'),benefit=sales*margin+saving;$('#roiResult').innerHTML=`<div class="cost-grid"><div>估算毛收益<strong>¥${num(benefit)}</strong></div><div>估算净收益<strong>¥${num(benefit-cost)}</strong></div><div>假设ROI<strong>${pct((benefit-cost)/cost)}</strong></div></div><p class="data-note">以上由手动假设计算，未验证增量归因或收益可实现性。</p>`;}});
-$('#modalClose').onclick=()=>$('#modal').close();$('#modal').addEventListener('click',e=>{if(e.target===$('#modal'))$('#modal').close();});$('#guideButton').onclick=guide;$('#dictionaryButton').onclick=dictionary;window.addEventListener('hashchange',()=>{if($('#modal').open)$('#modal').close();render();});
-async function llmScript(){const form=$('#contentForm');if(!form.reportValidity())return;const draft=buildScript(form);toast('正在请求本地已配置的大模型接口');try{const res=await fetch('/api/script',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});const data=await res.json();if(!res.ok)throw new Error(data.error||'模型接口未配置');state.script=data.script;state.approved=false;save('script',state.script);save('approved',false);$('#scriptBox').innerHTML=scriptHtml(state.script);$('#approveContent').checked=false;toast('模型脚本已生成，请人工核对');}catch(e){toast('未生成：本地接口未连接或模型未配置');}}
-function videoFrame(ctx,script,t){const p=C.product(script.productId),w=1280,h=720,scene=Math.min(2,Math.floor(t/5));const bg=ctx.createLinearGradient(0,0,w,h);bg.addColorStop(0,'#102e3c');bg.addColorStop(1,'#12645e');ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);ctx.fillStyle='#ffffff08';ctx.beginPath();ctx.arc(1040,350,360,0,Math.PI*2);ctx.fill();ctx.fillStyle='#82d8c7';ctx.font='22px "Microsoft YaHei", sans-serif';ctx.fillText('RETAIL OS  /  日常好物',84,94);ctx.fillStyle='white';ctx.font='bold 55px "Microsoft YaHei", sans-serif';ctx.fillText(p.name,80,235);ctx.font='30px "Microsoft YaHei", sans-serif';const caption=script.scenes[scene].caption;ctx.fillStyle='#d3e5e0';for(let i=0;i<caption.length;i+=18)ctx.fillText(caption.slice(i,i+18),84,320+Math.floor(i/18)*45);ctx.fillStyle='#9ee4c5';ctx.font='bold 66px "Microsoft YaHei", sans-serif';ctx.fillText(money(script.price,2),80,505);ctx.fillStyle='#c3d5d7';ctx.font='19px "Microsoft YaHei", sans-serif';ctx.fillText(script.terms.slice(0,45),84,620);ctx.fillStyle=p.color;ctx.beginPath();ctx.roundRect(930,200,155,310,24);ctx.fill();ctx.fillStyle='#e8efea';ctx.fillRect(950,184,115,28);ctx.fillStyle='#ffffff';ctx.font='bold 30px sans-serif';ctx.fillText('RETAIL',952,325);ctx.font='24px "Microsoft YaHei", sans-serif';ctx.fillText(p.category,982,380);ctx.fillStyle='#8fd7c5';ctx.fillRect(80,670,1120*Math.min(t/15,1),4);}
-async function renderVideo(){if(!state.script){toast('请先生成当前商品脚本');return;}if(!state.approved){toast('请先核对并勾选当前脚本审核项');return;}if(!globalThis.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){toast('当前浏览器不支持视频合成，请下载内置MP4样片');return;}const script=structuredClone(state.script),canvas=document.createElement('canvas');canvas.width=1280;canvas.height=720;const ctx=canvas.getContext('2d');const frame=$('.video-frame');frame.innerHTML='';frame.append(canvas);const stream=canvas.captureStream(25),mime=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm'].find(t=>MediaRecorder.isTypeSupported(t));if(!mime){toast('浏览器无可用WebM编码器，请下载内置样片');stream.getTracks().forEach(t=>t.stop());return;}const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:2000000}),chunks=[];rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data);};const btn=document.querySelector('[data-action="render-video"]');btn.disabled=true;const start=performance.now();try{const done=new Promise((resolve,reject)=>{rec.onstop=resolve;rec.onerror=reject;});rec.start();await new Promise(resolve=>{const tick=()=>{const t=(performance.now()-start)/1000;videoFrame(ctx,script,Math.min(t,15));const status=$('#renderStatus');if(status)status.textContent=`正在合成 ${Math.min(Math.round(t/15*100),100)}% · 约15秒 · 无声WebM`;if(t<15)requestAnimationFrame(tick);else resolve();};tick();});rec.stop();await done;const blob=new Blob(chunks,{type:'video/webm'}),url=URL.createObjectURL(blob);if(document.body.contains(frame)){frame.innerHTML=`<video controls autoplay src="${url}"></video>`;$('#renderStatus').textContent=`合成完成 · 实际 ${(performance.now()-start)/1000|0} 秒 · ${(blob.size/1048576).toFixed(2)} MB · 已按审核脚本导出`;}download(script.productName+'-营销演示.webm',blob);toast('视频已合成并开始下载');setTimeout(()=>URL.revokeObjectURL(url),600000);}catch(e){toast('合成失败，可下载内置MP4样片');}finally{stream.getTracks().forEach(t=>t.stop());if(btn)btn.disabled=false;}}
-render();
+(() => {
+  "use strict";
+  const D = globalThis.RETAIL_DATA,
+    C = globalThis.RetailCore,
+    $ = (s) => document.querySelector(s);
+  const esc = (x) =>
+    String(x ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+  const money = (n, d = 0) =>
+    "¥" +
+    (n / 100).toLocaleString("zh-CN", {
+      minimumFractionDigits: d,
+      maximumFractionDigits: d,
+    });
+  const pct = (n, d = 1) => (n * 100).toFixed(d) + "%";
+  const num = (n) => Math.round(n).toLocaleString("zh-CN");
+  const signed = (n) => (n >= 0 ? "+" : "") + pct(n);
+  const icon = (name) => {
+    const paths = {
+      overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
+      market: "M3 18V7l6 3 6-6 6 3v11 M3 21h18",
+      strategy:
+        "M8 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M1 21v-3a7 7 0 0 1 14 0v3 M17 3a4 4 0 0 1 0 8 M18 15a6 6 0 0 1 4 6",
+      content: "M3 5h13v14H3z M16 10l6-4v12l-6-4",
+      research: "M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16 M16 16l6 6",
+      projects: "M3 6h18v15H3z M8 6V2h8v4 M3 12h18",
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">${paths[
+      name
+    ]
+      .split(" M")
+      .map((p, i) => `<path d="${i ? "M" : ""}${p}"/>`)
+      .join("")}</svg>`;
+  };
+  const pages = [
+    ["overview", "经营驾驶舱"],
+    ["market", "市场与竞品雷达"],
+    ["strategy", "会员与策略中心"],
+    ["content", "AIGC内容工厂"],
+    ["research", "市场研究助手"],
+    ["projects", "项目与价值管理"],
+  ];
+  function read(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem("retail-v1-" + key)) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  function save(key, value) {
+    try {
+      localStorage.setItem("retail-v1-" + key, JSON.stringify(value));
+    } catch {
+      toast("浏览器存储不可用，本次修改仅在当前会话保留");
+    }
+  }
+  let state = {
+    page: "overview",
+    days: 28,
+    store: "all",
+    tab: "members",
+    member: 28,
+    segment: "all",
+    query: "",
+    plan: read("plan", null),
+    tasks: read("tasks", []),
+    evidence: read("evidence", D.evidence),
+    report: read("report", null),
+    script: read("script", null),
+    approved: read("approved", false),
+    priceProduct: 1,
+    filterMarket: "all",
+  };
+  let contentRevision = 0;
+  let memberRows = C.memberStats();
+  state.member = memberRows.find((m) => C.recommend(m.id, 1).length)?.id || 1;
+  if (!state.tasks.length)
+    state.tasks = [
+      {
+        id: "P-001",
+        title: "东区重点饮品缺货核查",
+        owner: "门店运营",
+        budget: 2000,
+        status: "进行中",
+        metric: "SKU可售率、转化率；先核实库存记录",
+        source: "经营异常",
+        created: D.meta.asOf,
+      },
+      {
+        id: "P-002",
+        title: "会员个性化推荐小范围试点",
+        owner: "算法 / 会员运营",
+        budget: 5000,
+        status: "待开始",
+        metric: "离线NDCG、线上净毛利与退订率",
+        source: "会员策略",
+        created: D.meta.asOf,
+      },
+      {
+        id: "P-003",
+        title: "完成首条商品视频模板验证",
+        owner: "内容运营",
+        budget: 800,
+        status: "已完成",
+        metric: "可播放模板样片；实际投放与效果尚未验证",
+        source: "内容生产",
+        created: D.meta.asOf,
+      },
+    ];
+  function toast(t) {
+    $("#toast").textContent = t;
+    $("#toast").classList.add("show");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => $("#toast").classList.remove("show"), 2800);
+  }
+  function modal(title, body) {
+    $("#modalTitle").textContent = title;
+    $("#modalBody").innerHTML = body;
+    $("#modal").showModal();
+  }
+  function download(name, content, type = "text/plain;charset=utf-8") {
+    const blob =
+        content instanceof Blob
+          ? content
+          : new Blob(["\ufeff", content], { type }),
+      url = URL.createObjectURL(blob),
+      a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 15000);
+  }
+  function csv(rows) {
+    return rows
+      .map((row) =>
+        row
+          .map((v) => '"' + String(v ?? "").replace(/"/g, '""') + '"')
+          .join(","),
+      )
+      .join("\r\n");
+  }
+  const pill = (text, style = "") =>
+    `<span class="pill ${style}">${esc(text)}</span>`;
+  const heading = (title, desc, buttons = "") =>
+    `<div class="page-heading"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${buttons}</div></div>`;
+  const button = (id, label, primary = false) =>
+    `<button class="${primary ? "primary" : "secondary"}" data-action="${id}">${label}</button>`;
+  const card = (title, body, action = "", sub = "") =>
+    `<section class="card"><div class="card-head"><div><h2>${title}</h2>${sub ? `<p>${sub}</p>` : ""}</div>${action}</div>${body}</section>`;
+  const table = (heads, rows) =>
+    `<div class="table-wrap"><table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  const option = (value, label, current) =>
+    `<option value="${esc(value)}" ${String(value) === String(current) ? "selected" : ""}>${esc(label)}</option>`;
+  function filterBar() {
+    return `<div class="filters"><span>分析范围</span><select id="storeFilter" aria-label="选择门店">${option("all", "全部门店", state.store)}${D.stores.map((s) => option(s.id, s.name, state.store)).join("")}</select><select id="daysFilter" aria-label="选择时间范围">${[7, 28, 90].map((n) => option(n, `最近${n}天`, state.days)).join("")}</select><span class="subtle">对比前一等长周期 · 退货计回原订单</span></div>`;
+  }
+  function kpi(label, value, change, sub, symbol) {
+    return `<div class="card kpi"><div class="kpi-top">${label}<span class="mini-icon">${symbol}</span></div><strong class="kpi-value">${value}</strong><div class="kpi-bottom"><span class="${change < 0 ? "down" : "up"}">${change === null ? "窗口内计算" : signed(change)}</span><span>${sub || "较前一周期"}</span></div></div>`;
+  }
+  function lineChart(rows, secondary) {
+    const w = 720,
+      h = 220,
+      pad = 38,
+      max =
+        Math.max(
+          ...rows.map((x) => x.sales),
+          ...(secondary || []).map((x) => x.sales),
+          1,
+        ) * 1.12;
+    const path = (rs) =>
+      rs
+        .map(
+          (v, i) =>
+            `${i ? "L" : "M"}${pad + (i * (w - pad - 12)) / Math.max(rs.length - 1, 1)},${h - 28 - (v.sales / max) * (h - 48)}`,
+        )
+        .join(" ");
+    const grid = [0, 0.5, 1]
+      .map((k) => {
+        const y = h - 28 - k * (h - 48);
+        return `<line class="gridline" x1="${pad}" y1="${y}" x2="${w}" y2="${y}"/><text x="0" y="${y + 4}">${Math.round((max * k) / 100).toLocaleString("zh-CN")}</text>`;
+      })
+      .join("");
+    return `<svg viewBox="0 0 ${w} ${h}" class="chart" role="img" aria-label="当前周期与前一周期净销售额趋势">${grid}<defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#15948a" stop-opacity=".16"/><stop offset="1" stop-color="#15948a" stop-opacity="0"/></linearGradient></defs><path d="${path(rows)} L${w - 12},${h - 28} L${pad},${h - 28} Z" fill="url(#chartFill)"/>${secondary ? `<path d="${path(secondary)}" fill="none" stroke="#bcc9d2" stroke-width="2" stroke-dasharray="5 4"/>` : ""}<path d="${path(rows)}" fill="none" stroke="#148c80" stroke-width="2.6"/>${[0, Math.floor(rows.length / 2), rows.length - 1].map((i) => `<text x="${pad + (i * (w - pad - 12)) / Math.max(rows.length - 1, 1)}" y="${h - 5}" text-anchor="${i === rows.length - 1 ? "end" : "start"}">${rows[i]?.date.slice(5)}</text>`).join("")}</svg>`;
+  }
+  function overview() {
+    const r = C.range(state.days, state.store),
+      pr = C.range(state.days, state.store, state.days),
+      a = C.summary(r),
+      b = C.summary(pr),
+      change = (key) => (b[key] ? a[key] / b[key] - 1 : 0);
+    const stores = C.breakdown(r),
+      prior = C.breakdown(pr),
+      stock = C.stockouts(r),
+      products = C.breakdown(r, "product");
+    const sn = stock.reduce((n, x) => n + x.days, 0),
+      decomp = C.decomposition(a, b);
+    return (
+      heading(
+        "经营驾驶舱",
+        "从经营变化到行动建议，让每一项决策都有依据。",
+        button("export-overview", "导出经营简报") +
+          button("diagnose", "查看经营诊断", true),
+      ) +
+      filterBar() +
+      `<div class="kpis">${kpi("净销售额", money(a.sales), change("sales"), null, "¥")}${kpi("商品毛利", money(a.gross), change("gross"), null, "▤")}${kpi("成交转化率", pct(a.conversion), change("conversion"), null, "↗")}${kpi("客单价", money(a.aov, 2), change("aov"), null, "▧")}</div><div class="grid">${card("销售趋势", `<div class="card-body">${lineChart(C.series(r), C.series(pr))}<div class="data-note">${r.start} 至 ${r.end} · ${num(a.orders)} 笔订单 · ${num(a.visitors)} 人次客流 · 金额单位：元</div></div>`, `<div class="legend"><span>本周期</span><span>前一周期</span></div>`)}${card("需要关注的经营信号", `<div class="card-body"><div class="insight"><div class="insight-top">${pill("库存", "orange")}<h3>${stock.length} 个门店商品存在零库存</h3></div><p>累计 ${sn} 个SKU门店日零库存，需核查实际可售与补货记录。</p></div><div class="insight"><div class="insight-top">${pill("转化", a.conversion < b.conversion ? "red" : "")}<h3>转化率${a.conversion < b.conversion ? "下降" : "上升"} ${Math.abs((a.conversion - b.conversion) * 100).toFixed(2)} 个百分点</h3></div><p>与缺货同期出现属于关联线索，原因需要进一步验证。</p></div><div class="insight"><div class="insight-top">${pill("毛利", "orange")}<h3>同步检查促销与商品结构</h3></div><p>价格、成本和销量共同影响毛利，建议按商品下钻。</p></div></div>`, button("create-task", "创建核查任务"))}</div><div class="notice"><strong>经营提示：</strong>当前销售变化 ${money(a.sales - b.sales)}，其中按固定顺序分解的转化率贡献为 ${money(decomp.conversion)}。${decomp.note} <button class="text-link" data-action="diagnose">查看分析依据</button></div><div class="grid">${card(
+        "门店经营表现",
+        table(
+          ["门店 / 区域", "净销售额", "周期变化", "毛利率", "贡献"],
+          stores
+            .filter((s) => state.store === "all" || s.id === +state.store)
+            .map((s) => {
+              const old = prior.find((x) => x.id === s.id),
+                delta = old.sales ? s.sales / old.sales - 1 : 0;
+              return `<tr><td><button class="row-button" data-store="${s.id}">${s.name}</button><div class="mini-label">${s.region}</div></td><td>${money(s.sales)}</td><td class="${delta < 0 ? "down" : "up"}">${signed(delta)}</td><td>${pct(s.margin)}</td><td><div class="bar-track"><div class="bar-fill" style="width:${a.sales ? (s.sales / a.sales) * 100 : 0}%"></div></div></td></tr>`;
+            }),
+        ),
+        `<span class="subtle">点击门店下钻</span>`,
+      )}${card(
+        "重点商品",
+        table(
+          ["商品", "净销售额", "毛利率"],
+          products
+            .slice(0, 5)
+            .map(
+              (p) =>
+                `<tr><td><button class="row-button" data-product-detail="${p.id}">${p.name}</button><div class="mini-label">${p.sku}</div></td><td>${money(p.sales)}</td><td>${pct(p.margin)}</td></tr>`,
+            ),
+        ),
+        `<button class="text-link" data-action="orders">订单明细</button>`,
+      )}</div>`
+    );
+  }
+  function diagnose() {
+    const r = C.range(state.days, state.store),
+      a = C.summary(r),
+      b = C.summary(C.range(state.days, state.store, state.days)),
+      de = C.decomposition(a, b),
+      stock = C.stockouts(r);
+    modal(
+      "经营诊断 · 事实、假设与行动",
+      `<div class="notice">${r.start} 至 ${r.end}，净销售变化 ${money(a.sales - b.sales)}。${de.note}</div>${table(
+        ["分解因素", "销售额贡献", "计算方式"],
+        [
+          ["客流", de.traffic, "客流变化 × 旧转化率 × 旧客单价"],
+          ["转化率", de.conversion, "新客流 × 转化率变化 × 旧客单价"],
+          ["客单价", de.aov, "新客流 × 新转化率 × 客单价变化"],
+        ].map(
+          (x) =>
+            `<tr><td>${x[0]}</td><td>${money(x[1])}</td><td>${x[2]}</td></tr>`,
+        ),
+      )}<h3 style="margin-top:24px">可核查的零库存记录</h3>${table(
+        ["门店", "商品", "零库存天数"],
+        stock
+          .slice(0, 10)
+          .map(
+            (x) =>
+              `<tr><td>${D.stores.find((s) => s.id === x.store).name}</td><td>${C.product(x.product).name}</td><td>${x.days}</td></tr>`,
+          ),
+      )}<div class="hero-note">原因假设：缺货、竞品促销与商品结构变化可能影响经营。需要结合补货记录、可售率及对照试点验证，不能据同期变化认定因果。</div><p class="subtle">建议动作：先核实库存和门店执行，再设计试点。验收同时观察净毛利、转化率与会员退订，不预先承诺增长。</p>${button("orders", "查看原始订单")}${button("create-task", "创建核查任务", true)}`,
+    );
+  }
+  function market() {
+    const productRows = D.products.filter(
+      (p) => state.filterMarket === "all" || p.category === state.filterMarket,
+    );
+    return (
+      heading(
+        "市场与竞品雷达",
+        "把价格与活动变化，转化为有条件、可追溯的经营建议。",
+        button("market-brief", "生成市场简报", true),
+      ) +
+      `<div class="notice warn">当前竞品、价格及活动记录均为虚构样本，用于验证商品匹配与分析流程。未连接实时采价服务。</div><div class="filters"><span>商品品类</span><select id="marketCategory">${["all", "饮料", "零食", "生鲜", "日用"].map((v) => option(v, v === "all" ? "全部品类" : v, state.filterMarket)).join("")}</select><span class="subtle">同规格 · 单件活动价 · 不含多件满减与运费</span></div><div class="kpis">${kpi("监测商品", String(productRows.length), null, "标准SKU", "▧")}${kpi("模拟竞品", "1", null, "邻里优选（虚构）", "◈")}${kpi("价格采样", num(D.prices.filter((p) => productRows.some((x) => x.id === p.product)).length), null, "按周采样记录", "▤")}${kpi("重点价差商品", String(productRows.filter((p) => [1, 3].includes(p.id)).length), null, "竞品价低于本方10%", "¥")}</div>${card(
+        "同规格价格对比",
+        table(
+          [
+            "商品 / 规格",
+            "本方标价",
+            "竞品最新采样价",
+            "竞品价差",
+            "采样日期",
+            "行动",
+          ],
+          productRows.map((p) => {
+            const samples = D.prices.filter((x) => x.product === p.id),
+              latest = samples.at(-1),
+              gap = latest.price / p.price - 1;
+            return `<tr><td class="name-cell">${p.name}<div class="mini-label">${p.sku} · ${p.unit}</div></td><td>${money(p.price, 2)}</td><td>${money(latest.price, 2)}</td><td class="${gap < -0.1 ? "down" : ""}">${signed(gap)}</td><td>${latest.date}</td><td><button class="text-link" data-compare="${p.id}">查看与模拟</button></td></tr>`;
+          }),
+        ),
+        `<span class="subtle">${D.meta.asOf} 观察快照</span>`,
+      )}<div style="height:22px"></div><div class="grid equal">${card("跟价之前，先判断", `<div class="card-body report"><p>核对规格、渠道、会员门槛与活动期限，再检查本方库存、成本和价格形象。</p><p>价格差异仅是输入。促销决策还应比较毛利、库存消化与顾客体验。</p>${button("goto-pricing", "进入促销模拟")}</div>`)}${card("来源与时效检查", `<div class="card-body"><div class="stat-line"><span>有效模拟来源记录</span><strong>${state.evidence.filter((e) => C.evidenceStatus(e) === "valid").length}</strong></div><div class="stat-line"><span>已过期活动</span><strong>${state.evidence.filter((e) => C.evidenceStatus(e) === "expired").length}</strong></div><p class="data-note">同源转载不构成独立验证，详细记录可在研究助手中查看。</p>${button("goto-research", "查看证据库")}</div>`)}</div>`
+    );
+  }
+  function strategy() {
+    const a = memberRows.filter(
+      (m) =>
+        (state.segment === "all" || m.segment === state.segment) &&
+        (!state.query ||
+          m.name.includes(state.query) ||
+          String(m.id).includes(state.query)),
+    );
+    return (
+      heading(
+        "会员与策略中心",
+        "将客户分层、商品关联与促销决策，组合成可验证的运营策略。",
+        button("export-members", "导出会员分层") +
+          button("evaluation", "查看算法评估", true),
+      ) +
+      `<div class="tabs">${[
+        ["members", "会员分层"],
+        ["recommend", "商品推荐"],
+        ["pricing", "定价与促销模拟"],
+        ["experiments", "试点与评测"],
+      ]
+        .map(
+          ([id, label]) =>
+            `<button class="tab ${state.tab === id ? "active" : ""}" data-tab="${id}">${label}</button>`,
+        )
+        .join("")}</div>` +
+      (state.tab === "members"
+        ? membersView(a)
+        : state.tab === "recommend"
+          ? recommendView()
+          : state.tab === "pricing"
+            ? pricingView()
+            : globalThis.RetailExtra.experiments())
+    );
+  }
+  function membersView(rows) {
+    const counts = Object.fromEntries(
+      ["高价值", "稳定复购", "新客培育", "待唤醒"].map((k) => [
+        k,
+        memberRows.filter((m) => m.segment === k).length,
+      ]),
+    );
+    return `<div class="kpis">${Object.entries(counts)
+      .map(([k, v]) => kpi(k, num(v), null, "近90天规则分层", "♧"))
+      .join(
+        "",
+      )}</div><div class="filters"><input id="memberSearch" type="text" placeholder="搜索会员编号" value="${esc(state.query)}" aria-label="搜索会员"><select id="memberSegment">${["all", ...Object.keys(counts)].map((v) => option(v, v === "all" ? "全部分层" : v, state.segment)).join("")}</select><span class="subtle">RFM规则分层 · 非流失概率或未来价值预测</span></div>${card(
+      "会员经营档案",
+      table(
+        [
+          "会员",
+          "分层",
+          "距最近购买",
+          "近90天频次",
+          "近90天净消费",
+          "偏好",
+          "行动",
+        ],
+        rows
+          .slice(0, 60)
+          .map(
+            (m) =>
+              `<tr><td class="name-cell">${m.name}</td><td>${pill(m.segment, m.segment === "待唤醒" ? "orange" : "")}</td><td>${m.recency === 999 ? "未购买" : m.recency + "天"}</td><td>${m.frequency} 笔</td><td>${money(m.monetary)}</td><td>${m.preference}</td><td><button class="text-link" data-member="${m.id}">查看推荐</button></td></tr>`,
+          ),
+      ),
+      `<span class="subtle">${rows.length} 名符合条件 · 展示前60名</span>`,
+    )}<p class="data-note">规则：R＞30天为待唤醒；其余会员中F≥12且M≥300元为高价值，F≥5为稳定复购，其余为新客培育。未购买会员归入待唤醒，作为演示规则。</p>`;
+  }
+  function recommendView() {
+    const m = memberRows.find((x) => x.id === +state.member),
+      store = state.store === "all" ? 1 : +state.store,
+      items = C.recommend(state.member, store, 6);
+    return `<div class="filters"><span>目标会员</span><select id="recMember">${memberRows.map((m) => option(m.id, m.name + " · " + m.preference, state.member)).join("")}</select><span>可售门店</span><select id="recStore">${D.stores.map((s) => option(s.id, s.name, store)).join("")}</select></div><div class="notice"><strong>${m.name}</strong> · ${m.segment} · 近90天偏好 ${m.preference}。使用 ${D.evaluation.trainEnd} 截止的商品篮关联模型与训练期购买记录；过滤训练期已购商品和观察日门店零库存。该离线模型快照未做在线更新。</div><div class="product-list">${items.length ? items.map((p) => `<div class="product-card"><div class="product-art"><div class="package-art" style="background:${p.color}">RETAIL<br>${p.category}</div></div><h3>${p.name}</h3><span class="price">${money(p.price, 2)}</span><p>${p.reason}</p><div class="stat-line"><span>可售库存</span><strong>${p.stock}件</strong></div><button class="text-link" data-promote="${p.id}">加入促销模拟</button></div>`).join("") : '<div class="empty">暂无满足未购与库存条件的商品。可换一个会员或门店。</div>'}</div><div class="notice" style="margin-top:22px">推荐逻辑：购物篮共现余弦相似度 × log(1+会员购买量)，无关联候选时以热门商品回退。解释由计算规则生成。离线评估不代表线上转化提升。</div>`;
+  }
+  function pricingView() {
+    const p = C.product(state.priceProduct),
+      inventory = C.sum(
+        D.inventory.filter((i) => i[0] === D.meta.asOf && i[2] === p.id),
+        (i) => i[3],
+      );
+    return `<div class="grid equal">${card("促销情景配置", `<div class="card-body"><form id="pricingForm"><div class="form-grid"><label class="field wide">商品<select name="productId" id="priceProduct">${D.products.map((p) => option(p.id, p.name, state.priceProduct)).join("")}</select></label><label class="field">候选单价（元）<input name="price" type="number" min="0.01" step="0.01" value="${((p.price / 100) * 0.92).toFixed(2)}" required></label><label class="field">基准周期销量（件）<input name="baseUnits" type="number" min="1" max="100000" step="1" value="100" required></label><label class="field">假设价格弹性<input name="elasticity" type="number" min="-5" max="0" step="0.1" value="-1.3" required></label><label class="field">可售库存上限（件）<input name="stock" type="number" min="0" max="1000000" step="1" value="${inventory}" required></label><label class="field">额外活动费用（元）<input name="budget" type="number" min="0" max="1000000" step="0.01" value="0" required></label><label class="field">最低费用后贡献率（%）<input name="minMargin" type="number" min="0" max="99" step="1" value="15" required></label></div><p class="data-note">标价 ${money(p.price, 2)} · 固定单位成本 ${money(p.cost, 2)}。销量与弹性为手动情景假设，可根据真实试点替换。</p><button class="primary" type="submit">计算与比较</button></form></div>`)}${card("情景结果", `<div class="card-body" id="pricingResult"><div class="empty">调整左侧假设，比较销量、毛利与库存约束。</div></div>`)}</div><div class="notice warn">恒定弹性需求假设：Q = Q₀ × (P/P₀)^ε，并受可售库存约束。费用后贡献 = 预计销售额 − 商品成本 − 额外活动费用。此处没有估计真实价格弹性，也没有预测真实经营增长。</div>`;
+  }
+  function computePricing(form) {
+    const fd = new FormData(form),
+      args = Object.fromEntries(fd);
+    for (const k in args) args[k] = +args[k];
+    args.price = Math.round(args.price * 100);
+    args.budget = Math.round(args.budget * 100);
+    args.minMargin /= 100;
+    const r = C.pricing(args),
+      p = C.product(args.productId);
+    state.plan = {
+      ...args,
+      ...r,
+      productName: p.name,
+      created: D.meta.asOf,
+      id: "CAM-" + String(args.productId).padStart(3, "0"),
+    };
+    save("plan", state.plan);
+    globalThis.RetailAdvanced.snapshot("促销模拟", args, r);
+    document.querySelector("#sensitivityPanel")?.remove();
+    document
+      .querySelector("#pricingResult")
+      .closest(".grid")
+      .insertAdjacentHTML(
+        "afterend",
+        '<div id="sensitivityPanel">' +
+          globalThis.RetailExtra.sensitivity(state.plan) +
+          "</div>",
+      );
+    $("#pricingResult").innerHTML =
+      `${pill(r.valid ? "满足当前约束" : "未满足约束", r.valid ? "" : "red")}<div class="cost-grid"><div>情景销量<strong>${num(r.units)}件</strong></div><div>预计销售额<strong>${money(r.sales)}</strong></div><div>费用后贡献<strong>${money(r.gross)}</strong></div></div><div class="stat-line"><span>费用后贡献率</span><strong>${pct(r.margin)}</strong></div><div class="stat-line"><span>原价情景商品毛利</span><strong>${money(r.baselineGross)}</strong></div><div class="stat-line"><span>与原价情景差额</span><strong class="${r.delta < 0 ? "down" : "up"}">${money(r.delta)}</strong></div><p class="data-note">原价情景使用同一基准销量与库存上限，不另计活动费用。${r.note}</p><div class="actions" style="margin-top:18px">${r.valid ? button("plan-to-content", "生成活动内容", true) : ""}${button("plan-to-task", "创建试点任务")}${button("export-plan", "导出方案")}</div>`;
+  }
+  function content() {
+    const p = C.product(state.plan?.productId || 1);
+    return (
+      heading(
+        "AIGC内容工厂",
+        "从商品事实与活动策略出发，生产可审核、可复用的营销素材。",
+        button("content-export", "导出脚本与审核记录"),
+      ) +
+      globalThis.RetailExtra.assets() +
+      `<div class="notice">${state.plan ? `已关联活动 <strong>${state.plan.id}</strong> · ${esc(state.plan.productName)} · 候选单价 ${money(state.plan.price, 2)}。该价格来自情景模拟，发布前需要业务审批。` : "当前使用商品资料中的标价，可从策略中心带入活动。"} 内容默认由模板生成；可选连接本地大模型服务生成脚本。</div><div class="grid equal">${card("内容生产配置", `<div class="card-body"><form id="contentForm"><div class="form-grid"><label class="field wide">商品<select id="contentProduct" name="productId">${D.products.map((x) => option(x.id, x.name, p.id)).join("")}</select></label><label class="field">目标人群<select name="audience"><option>通勤与日常消费人群</option><option>高价值会员</option><option>待唤醒会员</option></select></label><label class="field">品牌语气<select name="tone"><option>简洁、友好、克制</option><option>轻快、有生活感</option></select></label><label class="field wide">核心卖点（由运营确认）<input type="text" name="sellingPoint" value="适合日常随手选购" maxlength="60" required></label><label class="field wide">活动说明<input type="text" name="terms" value="演示商品与价格；以门店实际信息为准" maxlength="100" required></label></div><div class="actions" style="margin-top:18px"><button type="submit" class="primary">生成模板脚本</button>${button("llm-script", "使用已配置大模型")}</div></form><div id="scriptBox" class="report" style="margin-top:20px">${state.script ? scriptHtml(state.script) : '<p class="subtle">生成后显示分镜、字幕及商品事实核对信息。</p>'}</div></div>`)}${card("视频预览与交付", `<div class="card-body"><div class="video-frame"><video id="sampleVideo" controls preload="metadata" src="assets/retail-ai-film.mp4" poster="assets/oat-drink-ai.png"></video></div><p class="data-note">内置可播放样片：鲜萃燕麦饮 · AI静态素材 + 本地配音 + 模板动效 · 15秒。自定义视频使用已审核脚本在浏览器中合成，导出为无声WebM；配音稿另行导出。</p><div class="checklist"><label><input type="checkbox" id="approveContent" ${state.approved ? "checked" : ""}> 已核对当前脚本的商品、价格和活动说明</label></div><div class="actions">${button("render-video", "合成当前脚本视频", true)}<a class="secondary" href="assets/retail-ai-film.mp4" download="商品营销样片.mp4">下载内置样片</a></div><p id="renderStatus" class="data-note">自定义合成将在此处显示实际耗时与成片状态。</p><div class="cost-grid"><div>模板样片<strong>15 秒</strong></div><div>当前生产方式<strong style="font-size:15px">模板与规则</strong></div><div>模型费用<strong>未接入</strong></div></div></div>`)}</div><div class="notice warn">内置样片使用已生成的AI商品图，鲜萃燕麦饮自定义视频也使用该素材；其他商品使用示意包装。当前页面未提供实时图像或视频模型调用；生成式脚本接口只在配置了模型的本地服务中可用。所有成片仅供面试演示。</div>`
+    );
+  }
+  function scriptHtml(s) {
+    return `<h3>${esc(s.productName)} · ${s.mode === "llm" ? "模型生成" : "模板生成"}</h3><p class="subtle">目标：${esc(s.audience)} · 展示单价 ${money(s.price, 2)}</p>${table(
+      ["时间", "画面与字幕", "配音稿"],
+      s.scenes.map(
+        (x) =>
+          `<tr><td>${esc(x.time)}</td><td>${esc(x.caption)}</td><td>${esc(x.voice)}</td></tr>`,
+      ),
+    )}<p class="data-note">活动说明：${esc(s.terms)}</p>`;
+  }
+  function buildScript(form) {
+    const fd = new FormData(form),
+      p = C.product(fd.get("productId"));
+    return {
+      productId: p.id,
+      productName: p.name,
+      price: state.plan?.productId === p.id ? state.plan.price : p.price,
+      mode: "template",
+      audience: fd.get("audience"),
+      tone: fd.get("tone"),
+      terms: fd.get("terms"),
+      created: new Date().toISOString(),
+      scenes: [
+        {
+          time: "0–5秒",
+          caption: `日常好物 · ${p.name}`,
+          voice: `今天为你介绍${p.name}。`,
+        },
+        {
+          time: "5–10秒",
+          caption: String(fd.get("sellingPoint")),
+          voice: `${fd.get("sellingPoint")}，按需选购。`,
+        },
+        {
+          time: "10–15秒",
+          caption: `到店看看 · ${money(state.plan?.productId === p.id ? state.plan.price : p.price, 2)}`,
+          voice: "欢迎到店了解，以门店实际信息为准。",
+        },
+      ],
+    };
+  }
+  function researchView() {
+    const report = state.report;
+    return (
+      heading(
+        "市场研究助手",
+        "让研究结论回到证据，让过期信息与同源转载可识别。",
+        button("add-evidence", "添加证据") +
+          button("export-report", "导出研究报告"),
+      ) +
+      `<div class="grid"><div>${card("发起一次有依据的研究", `<div class="card-body"><form id="researchForm"><label class="field">研究问题<textarea name="question" required maxlength="300">东区近期饮品经营变化有哪些线索？应如何设计下一步验证？</textarea></label><div class="actions" style="margin-top:16px"><button class="primary" type="submit">运行证据工作流</button>${pill("受控资料库 · 无实时检索", "gray")}</div></form><div id="researchProgress"></div></div>`)}<div style="height:22px"></div>${card(report ? "研究报告 · 可追溯结论" : "等待研究任务", `<div class="card-body report" id="researchReport">${report ? reportHtml(report) : '<div class="empty">工作流将筛选有效证据、识别同源转载，并将经营计算结果写入报告。</div>'}</div>`)}</div>${card(
+        "证据库",
+        `<div class="card-body">${state.evidence
+          .map((e) => {
+            const status = C.evidenceStatus(e);
+            return `<div class="evidence"><div class="insight-top">${pill(e.id)}${pill(status === "valid" ? "时效有效" : status === "expired" ? "已过期" : "未来资料", status === "valid" ? "" : "orange")}${e.synthetic ? pill("模拟", "gray") : pill("用户提供", "gray")}</div><h3><button class="row-button" data-evidence="${esc(e.id)}">${esc(e.title)}</button></h3><p>${esc(e.text.slice(0, 85))}${e.text.length > 85 ? "…" : ""}</p><div class="evidence-meta">${esc(e.published)} · ${esc(e.publisher)}<br>原始信源组 ${esc(e.group)}</div></div>`;
+          })
+          .join("")}</div>`,
+        `<span class="subtle">${state.evidence.length} 条</span>`,
+      )}</div><div class="notice warn">工作流会执行日期检查和同源去重；导入文本的事实真实性需人工核实。报告使用结构化模板，未调用大模型，且不代表完成了互联网调研。</div>`
+    );
+  }
+  function reportHtml(r) {
+    return `<h3>${esc(r.question)}</h3><p>${esc(r.summary)}</p>${r.quality ? `<div class="notice">${esc(r.quality.method)} · ${r.quality.independentSources} 个独立原始信源 · ${esc(r.quality.coverage)}</div>` : ""}<h3>匹配证据与原文</h3>${r.claims.map((c) => `<blockquote>${esc(c.text)} ${c.evidence.map((id) => `<button class="citation" data-evidence="${esc(id)}">${esc(id)}</button>`).join("")}<div class="mini-label">${esc(c.type)} · ${c.synthetic ? "模拟证据" : "用户提供，未独立核实"}</div></blockquote>`).join("") || "<p>没有足够的匹配证据，未生成外部事实结论。</p>"}<h3>待验证判断</h3>${(r.hypotheses || []).map((h) => `<p>${esc(h)}</p>`).join("") || "<p>资料不足，暂不形成业务判断。</p>"}<h3>下一步</h3><p>${esc(r.recommendation)}</p><h3>排除与质量检查</h3>${r.excluded.map((e) => `<p>${pill(e.id, "gray")} ${esc(e.title)}：${esc(e.reason)}</p>`).join("") || "<p>无排除记录。</p>"}<p class="data-note">${esc(r.limitations)}</p>`;
+  }
+  function baseProjects() {
+    const sumBudget = state.tasks.reduce((n, t) => n + t.budget, 0),
+      done = state.tasks.filter((t) => t.status === "已完成").length;
+    return (
+      heading(
+        "项目与价值管理",
+        "把业务目标、交付责任与验证方式放进同一张执行视图。",
+        button("roadmap", "90天落地方案") +
+          button("new-task", "新建项目", true),
+      ) +
+      `<div class="kpis">${kpi("演示项目", String(state.tasks.length), null, "本浏览器保存", "▤")}${kpi("计划预算", money(sumBudget * 100), null, "规划数字，非实际发生", "¥")}${kpi("完成占比", pct(done / state.tasks.length), null, "任务状态，不代表收益实现", "◈")}${kpi("实际业务收益", "待验证", null, "需真实试点与对照", "▧")}</div><div class="board">${[
+        "待开始",
+        "进行中",
+        "已完成",
+      ]
+        .map(
+          (status) =>
+            `<section class="column"><h3>${status} <span class="subtle">${state.tasks.filter((t) => t.status === status).length}</span></h3>${state.tasks
+              .filter((t) => t.status === status)
+              .map(
+                (t) =>
+                  `<article class="task">${pill(t.id, "gray")}<h3 style="margin-top:12px">${esc(t.title)}</h3><p>${esc(t.owner)} · 预算 ¥${num(t.budget)}</p><p>验收：${esc(t.metric)}</p><p>来源：${esc(t.source)}</p><select aria-label="${esc(t.title)}的状态" data-task-status="${esc(t.id)}">${["待开始", "进行中", "已完成"].map((x) => option(x, x, t.status)).join("")}</select></article>`,
+              )
+              .join("")}</section>`,
+        )
+        .join(
+          "",
+        )}</div><div style="height:23px"></div><div class="grid equal">${card("投入产出估算器", `<div class="card-body"><form id="roiForm"><div class="form-grid"><label class="field">周期新增净销售额（元）<input type="number" name="sales" min="0" max="100000000" value="10000" required></label><label class="field">贡献毛利率（%）<input type="number" name="margin" min="0" max="100" value="30" required></label><label class="field">可实现的节省费用（元）<input type="number" name="saving" min="0" max="10000000" value="0" required></label><label class="field">全部增量投入（元）<input type="number" name="cost" min="0.01" max="10000000" step="0.01" value="5000" required></label></div><button class="primary" type="submit" style="margin-top:18px">计算假设ROI</button></form><div id="roiResult"></div><p class="data-note">ROI =（新增销售 × 贡献毛利率 + 可实现节省 − 全部增量投入）÷ 全部增量投入。节省不包含不能兑现的人时；额外投入应包含优惠、模型、工程和审核费用，并避免重复扣减。</p></div>`)}${card("向管理层汇报什么", `<div class="card-body"><div class="stat-line"><span>当前问题</span><strong>缺货、转化与毛利</strong></div><div class="stat-line"><span>优先策略</span><strong>先核实，再受控试点</strong></div><div class="stat-line"><span>投入边界</span><strong>分阶段预算与验收</strong></div><div class="stat-line"><span>继续或停止</span><strong>看证据与净收益</strong></div><p class="data-note">本页为演示管理方案，不代表真实团队管理经历或企业已确认预算。</p>${button("management-export", "导出管理摘要")}</div>`)}</div>`
+    );
+  }
+  function projects() {
+    return baseProjects() + globalThis.RetailExtra.auditPanel();
+  }
+  function render() {
+    contentRevision++;
+    state.page = location.hash.slice(1) || "overview";
+    if (!pages.some((p) => p[0] === state.page)) state.page = "overview";
+    $("#nav").innerHTML = pages
+      .map(
+        ([id, label]) =>
+          `<a href="#${id}" class="${state.page === id ? "active" : ""}">${icon(id)}${label}</a>`,
+      )
+      .join("");
+    $("#breadcrumb").textContent = pages.find((p) => p[0] === state.page)[1];
+    $("#main").innerHTML = {
+      overview,
+      market,
+      strategy,
+      content,
+      research: researchView,
+      projects,
+    }[state.page]();
+    window.scrollTo(0, 0);
+  }
+  function go(page, tab) {
+    if (tab) state.tab = tab;
+    if (location.hash === "#" + page) render();
+    else location.hash = page;
+  }
+  function dictionary() {
+    modal(
+      "指标字典与数据边界",
+      table(
+        ["指标", "计算方式", "口径与限制"],
+        C.metrics.map(
+          (row) => `<tr>${row.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`,
+        ),
+      ) +
+        `<div class="notice" style="margin-top:20px">全部零售业务数据由种子 ${D.meta.seed} 可复现生成。金额计算使用整数分。当前浏览器内修改存于localStorage，不跨设备同步。</div>`,
+    );
+  }
+  function guide() {
+    modal(
+      "面试演示路线 · 建议10–15分钟",
+      `<div class="report"><p>作品定位：针对岗位自主开发的演示项目，业务、顾客与竞品均为虚构。</p><ol><li>经营驾驶舱：从净销售变化下钻，展示固定顺序贡献分解与原始订单。</li><li>市场与竞品雷达：核对同规格价格、活动条件和来源时效。</li><li>会员与策略中心：展示分层、推荐基线与时间切分离线评估；计算促销情景。</li><li>AIGC内容工厂：带入活动商品与价格，生成脚本、审核并导出视频。</li><li>市场研究助手：运行证据检查，展示过期活动与同源转载的排除结果。</li><li>项目与价值管理：将建议形成任务，说明预算、验收方式与90天试点计划。</li></ol><p>能力边界：统计与推荐可本地执行；报告使用规则模板，外部采价与检索未连接。大模型脚本为可选本地接口。所有离线结果均不代表真实商业收益。</p></div>`,
+    );
+  }
+  function showEvaluation() {
+    const e = D.evaluation;
+    modal(
+      "推荐算法 · 时间切分离线评估",
+      `<div class="notice">训练截止 ${e.trainEnd}；测试窗口 ${e.testStart} 至 ${e.testEnd}。${e.users} 名训练期已有历史且测试期存在未购商品的会员；K=${e.k}。</div>${table(
+        ["指标", "热门推荐基线", "商品篮关联推荐"],
+        [
+          ["HitRate@5", "hitRate"],
+          ["Recall@5", "recall"],
+          ["NDCG@5", "ndcg"],
+        ].map(
+          ([label, key]) =>
+            `<tr><td>${label}</td><td>${pct(e.baseline[key], 2)}</td><td>${pct(e.personalized[key], 2)}</td></tr>`,
+        ),
+      )}<div class="report"><p>模型：训练期购物篮共现余弦相似度 × log(1+购买量)，候选排除训练期已购。基线同样排除训练期已购，按训练期净销量排序；无关联候选以热门回退。离线评估未过滤库存，界面推荐额外过滤观察日库存。</p><p>HitRate衡量至少命中一个商品的用户占比；Recall衡量相关商品找回比例；NDCG衡量命中位置。此测试集只涵盖符合条件的会员与新购商品。</p><p>覆盖率：${pct(e.personalized.coverage)}。固定随机种子 ${D.meta.seed}，执行 scripts/generate_data.py 可重建评估。</p><div class="notice warn">模拟数据预设了顾客品类偏好与部分搭配关系。此评估用于验证算法链路，不证明真实零售适用性或线上转化提升。</div></div>`,
+    );
+  }
+  function rawOrders(productId) {
+    const rows = D.orders.filter(
+      (o) =>
+        C.includes(o, C.range(state.days, state.store)) &&
+        (!productId || o.items.some((i) => i[0] === productId)),
+    );
+    modal(
+      "原始订单 · " + (productId ? C.product(productId).name : "当前分析范围"),
+      `<p class="subtle">共 ${rows.length} 笔，显示最近60笔。退款计回订单日期；可导出当前筛选范围的全部订单明细。</p>${button("export-orders", "导出当前窗口全部明细")}<div style="height:15px"></div>${table(
+        ["订单", "日期", "门店", "净销售额", "商品明细"],
+        rows
+          .slice(-60)
+          .reverse()
+          .map(
+            (o) =>
+              `<tr><td>${o.id}</td><td>${o.date}</td><td>${D.stores.find((s) => s.id === o.store).name}</td><td>${money(C.orderNet(o), 2)}</td><td>${o.items.map((i) => `${C.product(i[0]).name} ×${i[1]} / 退${i[3]}`).join("<br>")}</td></tr>`,
+          ),
+      )}`,
+    );
+  }
+  function showEvidence(id) {
+    const e = state.evidence.find((e) => e.id === id);
+    if (!e) return;
+    modal(
+      `${e.id} · ${e.title}`,
+      `<div class="report"><p>${pill(e.synthetic ? "模拟证据" : "用户提供，未独立核实", "orange")} ${pill(C.evidenceStatus(e) === "valid" ? "时效有效" : "不在有效期", "gray")}</p><p>${esc(e.text)}</p><p>发布者：${esc(e.publisher)}<br>发布日期：${esc(e.published)}<br>有效截止：${esc(e.expires || "未声明")}<br>原始信源组：${esc(e.group)}</p>${e.url ? `<p>用户提供的来源：<a href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">打开来源</a></p>` : ""}<p class="data-note">日期有效不等于事实可信。多个记录若来自相同原始信息，只保留一个作为独立来源。</p></div>`,
+    );
+  }
+  function taskForm(defaultTitle = "", source = "人工创建") {
+    modal(
+      "创建可验收的试点任务",
+      `<form id="taskForm"><div class="form-grid"><label class="field wide">任务名称<input name="title" required maxlength="80" value="${esc(defaultTitle)}"></label><label class="field">负责人<input name="owner" required maxlength="50" value="业务运营 / 技术"></label><label class="field">计划预算（元）<input name="budget" type="number" min="0" max="10000000" value="2000" required></label><label class="field wide">验收指标<textarea name="metric" required maxlength="200">核查业务基线；定义对照、观察周期、净毛利及负向指标；达成条件后再扩大。</textarea></label><input type="hidden" name="source" value="${esc(source)}"></div><button class="primary" type="submit" style="margin-top:18px">保存任务</button></form>`,
+    );
+  }
+  function reportText(r) {
+    return `# ${r.question}\n\n${r.summary}\n\n## 证据\n${r.claims.map((c) => `- ${c.text} [${c.evidence.join(",")}]（${c.synthetic ? "模拟证据" : "用户提供，未独立核实"}）`).join("\n")}\n\n## 行动建议\n${r.recommendation}\n\n## 排除记录\n${r.excluded.map((e) => `${e.id} ${e.reason}`).join("\n")}\n\n## 证据目录\n${r.accepted.map((e) => `${e.id} | ${e.title} | ${e.publisher} | ${e.published} | ${e.url || "内置模拟资料，无外部链接"}`).join("\n")}\n\n${r.limitations}`;
+  }
+  function overviewText() {
+    const a = C.summary(C.range(state.days, state.store)),
+      b = C.summary(C.range(state.days, state.store, state.days)),
+      de = C.decomposition(a, b);
+    return `# 经营简报（模拟数据）\n观察截至 ${D.meta.asOf}，窗口${state.days}天，门店：${state.store === "all" ? "全部" : D.stores.find((s) => s.id === +state.store).name}\n\n净销售额 ${money(a.sales, 2)}；商品毛利 ${money(a.gross, 2)}；订单 ${a.orders}；转化率 ${pct(a.conversion)}；客单价 ${money(a.aov, 2)}。\n\n较前周期净销售变化 ${money(a.sales - b.sales, 2)}。\n客流贡献 ${money(de.traffic, 2)}；转化率贡献 ${money(de.conversion, 2)}；客单价贡献 ${money(de.aov, 2)}。\n${de.note}\n\n行动：核查重点SKU零库存与补货；结合价格及会员策略设计受控试点。\n\n边界：全部业务数据为虚构；不承诺真实收益。`;
+  }
+  const actions = {
+    diagnose: diagnose,
+    orders: () => rawOrders(),
+    guide: guide,
+    evaluation: showEvaluation,
+    "export-overview": () => download("经营简报.md", overviewText()),
+    "export-orders": () => {
+      const rows = [
+        [
+          "订单ID",
+          "日期",
+          "门店",
+          "会员ID",
+          "商品SKU",
+          "数量",
+          "退货数量",
+          "折后单价(分)",
+          "净销售额(分)",
+        ],
+      ];
+      for (const o of D.orders)
+        if (C.includes(o, C.range(state.days, state.store)))
+          for (const i of o.items)
+            rows.push([
+              o.id,
+              o.date,
+              D.stores.find((s) => s.id === o.store).name,
+              o.member || "",
+              C.product(i[0]).sku,
+              i[1],
+              i[3],
+              i[2],
+              (i[1] - i[3]) * i[2],
+            ]);
+      download("订单明细.csv", csv(rows), "text/csv;charset=utf-8");
+    },
+    "export-members": () =>
+      download(
+        "会员分层.csv",
+        csv([
+          [
+            "会员ID",
+            "分层",
+            "最近购买间隔",
+            "近90天频次",
+            "近90天净消费(分)",
+            "偏好",
+          ],
+          ...memberRows.map((m) => [
+            m.id,
+            m.segment,
+            m.recency,
+            m.frequency,
+            m.monetary,
+            m.preference,
+          ]),
+        ]),
+        "text/csv;charset=utf-8",
+      ),
+    "create-task": () => taskForm("重点商品缺货与转化变化核查", "经营驾驶舱"),
+    "new-task": () => taskForm(),
+    "goto-pricing": () => go("strategy", "pricing"),
+    "goto-research": () => go("research"),
+    "plan-to-content": () => {
+      state.script = null;
+      state.approved = false;
+      save("script", null);
+      save("approved", false);
+      go("content");
+    },
+    "plan-to-task": () =>
+      taskForm(`${state.plan.productName}促销受控试点`, state.plan.id),
+    "export-plan": () =>
+      download(
+        "促销情景方案.json",
+        JSON.stringify(state.plan, null, 2),
+        "application/json;charset=utf-8",
+      ),
+    "market-brief": () => {
+      state.report = C.research(
+        "竞品价格与活动变化，应如何转化为经营动作？",
+        state.evidence,
+      );
+      go("research");
+    },
+    "export-report": () => {
+      if (!state.report) {
+        toast("请先运行一次研究工作流");
+        return;
+      }
+      download("市场研究报告.md", reportText(state.report));
+    },
+    "content-export": () => {
+      if (!state.script) {
+        toast("请先生成脚本");
+        return;
+      }
+      download(
+        "营销脚本与审核记录.json",
+        JSON.stringify(
+          {
+            script: state.script,
+            approved: state.approved,
+            source: state.plan?.id || "商品标价",
+            note: "人工核对状态仅在本浏览器保存；配音稿尚未合成音频。",
+          },
+          null,
+          2,
+        ),
+        "application/json;charset=utf-8",
+      );
+    },
+    "add-evidence": () =>
+      modal(
+        "添加研究证据",
+        `<form id="evidenceForm"><div class="form-grid"><label class="field wide">标题<input name="title" required maxlength="100"></label><label class="field">发布者<input name="publisher" required maxlength="60"></label><label class="field">原始信源组<input name="group" required maxlength="50" placeholder="相同原始来源请用同一组名"></label><label class="field">发布日期<input type="date" name="published" required value="${D.meta.asOf}"></label><label class="field">有效截止（可选）<input type="date" name="expires"></label><label class="field wide">来源网址（可选）<input name="url" type="url" placeholder="https://"></label><label class="field wide">原文摘录<textarea name="text" required maxlength="3000"></textarea></label></div><p class="data-note">资料仅保存于本浏览器。请自行核实来源和摘录，程序不访问该网址。</p><button class="primary" type="submit">加入证据库</button></form>`,
+      ),
+    roadmap: () =>
+      modal(
+        "入职90天落地方案 · 待业务确认",
+        `<div class="timeline"><div><h3>前30天 · 明确问题</h3><p>访谈零售与运营负责人；盘点系统、数据质量、团队和供应商；统一指标与基线。</p><p>交付：业务问题清单、数据字典、优先级与试点建议。</p></div><div><h3>31–60天 · 受控试点</h3><p>选定明确业务负责人和试点范围；先跑基线，再上线策略；记录异常、成本与业务反馈。</p><p>交付：可运行试点、验收记录、阶段预算。</p></div><div><h3>61–90天 · 决定推广</h3><p>评估净收益、稳定性和运营负担；对未达标方案调整或停止；形成推广与人员计划。</p><p>交付：效果评估、阶段复盘、下一阶段投入建议。</p></div></div><p class="data-note">具体团队、预算与时间安排需结合实际数据基础确定，此方案不代表企业现状。</p>`,
+      ),
+    "management-export": () =>
+      download(
+        "管理层阶段汇报.md",
+        `# 零售AI试点阶段汇报（演示）\n\n${overviewText()}\n\n## 项目状态\n${state.tasks.map((t) => `- ${t.id} ${t.title}｜${t.status}｜负责人${t.owner}｜计划预算¥${t.budget}｜验收${t.metric}`).join("\n")}\n\n## 需要决策\n确认业务负责人、试点范围、阶段预算与验收口径。真实业务收益待实验验证，预算为演示规划值。`,
+      ),
+    "render-video": () => renderVideo(),
+    "llm-script": () => llmScript(),
+  };
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("[data-action]");
+    if (a) {
+      actions[a.dataset.action]?.();
+      return;
+    }
+    const tab = e.target.closest("[data-tab]");
+    if (tab) {
+      state.tab = tab.dataset.tab;
+      render();
+      return;
+    }
+    const s = e.target.closest("[data-store]");
+    if (s) {
+      state.store = s.dataset.store;
+      render();
+      return;
+    }
+    const p = e.target.closest("[data-product-detail]");
+    if (p) {
+      rawOrders(+p.dataset.productDetail);
+      return;
+    }
+    const m = e.target.closest("[data-member]");
+    if (m) {
+      state.member = +m.dataset.member;
+      state.tab = "recommend";
+      render();
+      return;
+    }
+    const cmp = e.target.closest("[data-compare]");
+    if (cmp) {
+      state.priceProduct = +cmp.dataset.compare;
+      const p = C.product(state.priceProduct);
+      modal(
+        p.name + " · 价格核对",
+        `<div class="report"><p>规格：${p.unit}。竞品价格为模拟采样，按周记录，活动条件为同规格单件活动价。</p><p>本方标价 ${money(p.price, 2)}；商品成本 ${money(p.cost, 2)}。价格差不能单独决定跟价，需查看库存和贡献约束。</p>${button("goto-pricing", "打开该商品促销模拟", true)}</div>`,
+      );
+      return;
+    }
+    const pro = e.target.closest("[data-promote]");
+    if (pro) {
+      state.priceProduct = +pro.dataset.promote;
+      state.tab = "pricing";
+      render();
+      return;
+    }
+    const ev = e.target.closest("[data-evidence]");
+    if (ev) {
+      if ($("#modal").open) $("#modal").close();
+      showEvidence(ev.dataset.evidence);
+    }
+  });
+  document.addEventListener("change", (e) => {
+    const el = e.target;
+    if (el.closest("#contentForm")) contentRevision++;
+    if (el.id === "storeFilter" || el.id === "recStore") {
+      state.store = el.value;
+      render();
+    }
+    if (el.id === "daysFilter") {
+      state.days = +el.value;
+      render();
+    }
+    if (el.id === "marketCategory") {
+      state.filterMarket = el.value;
+      render();
+    }
+    if (el.id === "memberSegment") {
+      state.segment = el.value;
+      render();
+    }
+    if (el.id === "recMember") {
+      state.member = +el.value;
+      render();
+    }
+    if (el.id === "priceProduct") {
+      state.priceProduct = +el.value;
+      render();
+    }
+    if (el.id === "approveContent") {
+      state.approved = el.checked;
+      save("approved", state.approved);
+      if (state.approved && state.script) {
+        const approval = {
+          at: new Date().toISOString(),
+          signature: globalThis.RetailAdvanced.signature(state.script),
+          productId: state.script.productId,
+          price: state.script.price,
+        };
+        save("approval", approval);
+        globalThis.RetailAdvanced.snapshot("内容人工核对", approval, {
+          approved: true,
+        });
+      }
+    }
+    if (el.id === "contentProduct") {
+      state.script = null;
+      state.approved = false;
+      save("script", null);
+      save("approved", false);
+      $("#scriptBox").innerHTML =
+        '<p class="subtle">商品已改变，请重新生成脚本。</p>';
+      $("#approveContent").checked = false;
+    }
+    if (el.dataset.taskStatus) {
+      state.tasks.find((t) => t.id === el.dataset.taskStatus).status = el.value;
+      save("tasks", state.tasks);
+      render();
+      toast("任务状态已保存");
+    }
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target.id === "memberSearch") {
+      state.query = e.target.value;
+      const start = e.target.selectionStart;
+      render();
+      $("#memberSearch").focus();
+      $("#memberSearch").setSelectionRange(start, start);
+    }
+    if (e.target.closest("#contentForm")) {
+      contentRevision++;
+      state.approved = false;
+      save("approved", false);
+      if ($("#approveContent")) $("#approveContent").checked = false;
+    }
+  });
+  document.addEventListener("submit", async (e) => {
+    const f = e.target;
+    e.preventDefault();
+    if (f.id === "pricingForm") computePricing(f);
+    if (f.id === "contentForm") {
+      contentRevision++;
+      state.script = buildScript(f);
+      globalThis.RetailAdvanced.snapshot(
+        "模板脚本生成",
+        {
+          productId: state.script.productId,
+          source: state.plan?.id || "商品标价",
+        },
+        state.script,
+      );
+      state.approved = false;
+      save("script", state.script);
+      save("approved", false);
+      $("#approveContent").checked = false;
+      $("#scriptBox").innerHTML = scriptHtml(state.script);
+      toast("脚本已生成，请完成商品与活动核对");
+    }
+    if (f.id === "taskForm") {
+      const fd = new FormData(f);
+      state.tasks.push({
+        id: "P-" + Date.now().toString().slice(-6),
+        title: fd.get("title"),
+        owner: fd.get("owner"),
+        budget: +fd.get("budget"),
+        metric: fd.get("metric"),
+        source: fd.get("source"),
+        created: new Date().toISOString().slice(0, 10),
+        status: "待开始",
+      });
+      save("tasks", state.tasks);
+      globalThis.RetailAdvanced.snapshot(
+        "试点任务创建",
+        { source: fd.get("source") },
+        state.tasks.at(-1),
+      );
+      $("#modal").close();
+      go("projects");
+      toast("试点任务已创建");
+    }
+    if (f.id === "evidenceForm") {
+      const fd = new FormData(f);
+      const url = String(fd.get("url") || "");
+      if (url && !/^https?:\/\//i.test(url)) {
+        toast("来源网址仅支持http或https");
+        return;
+      }
+      state.evidence.push({
+        id: "U" + Date.now().toString().slice(-7),
+        title: fd.get("title"),
+        publisher: fd.get("publisher"),
+        group: fd.get("group"),
+        published: fd.get("published"),
+        expires: fd.get("expires") || null,
+        text: fd.get("text"),
+        url,
+        kind: "用户资料",
+        synthetic: false,
+      });
+      save("evidence", state.evidence);
+      state.report = null;
+      save("report", null);
+      $("#modal").close();
+      render();
+      toast("资料已加入，真实性待人工核实");
+    }
+    if (f.id === "researchForm") {
+      const q = new FormData(f).get("question"),
+        steps = [
+          "读取研究问题与资料",
+          "检查发布时间与活动期限",
+          "按原始信源去重",
+          "汇总经营计算与证据",
+          "生成报告与限制说明",
+        ];
+      const btn = f.querySelector("button");
+      btn.disabled = true;
+      for (let i = 0; i < steps.length; i++) {
+        if (!$("#researchProgress")) break;
+        $("#researchProgress").innerHTML = steps
+          .slice(0, i + 1)
+          .map(
+            (s) =>
+              `<div class="research-step"><span class="step-check">✓</span>${s}</div>`,
+          )
+          .join("");
+        await new Promise((r) => setTimeout(r, 180));
+      }
+      state.report = C.research(q, state.evidence);
+      save("report", state.report);
+      globalThis.RetailAdvanced.snapshot(
+        "资料库研究",
+        { question: q },
+        state.report,
+        state.report.accepted.map((x) => x.id),
+      );
+      if (state.page === "research") {
+        $("#researchReport").innerHTML = reportHtml(state.report);
+        $("#researchReport").closest(".card").querySelector("h2").textContent =
+          "研究报告 · 可追溯结论";
+        btn.disabled = false;
+      }
+      toast("研究完成：已记录有效、过期与同源信息");
+    }
+    if (f.id === "roiForm") {
+      const fd = new FormData(f),
+        sales = +fd.get("sales"),
+        margin = +fd.get("margin") / 100,
+        saving = +fd.get("saving"),
+        cost = +fd.get("cost"),
+        benefit = sales * margin + saving;
+      $("#roiResult").innerHTML =
+        `<div class="cost-grid"><div>估算毛收益<strong>¥${num(benefit)}</strong></div><div>估算净收益<strong>¥${num(benefit - cost)}</strong></div><div>假设ROI<strong>${pct((benefit - cost) / cost)}</strong></div></div><p class="data-note">以上由手动假设计算，未验证增量归因或收益可实现性。</p>`;
+    }
+  });
+  $("#modalClose").onclick = () => $("#modal").close();
+  $("#modal").addEventListener("click", (e) => {
+    if (e.target === $("#modal")) $("#modal").close();
+  });
+  $("#guideButton").onclick = guide;
+  $("#dictionaryButton").onclick = dictionary;
+  window.addEventListener("hashchange", () => {
+    if ($("#modal").open) $("#modal").close();
+    render();
+  });
+  async function llmScript() {
+    const form = $("#contentForm");
+    if (!form.reportValidity()) return;
+    const draft = buildScript(form);
+    const revision = contentRevision;
+    const trigger = form.querySelector('[data-action="llm-script"]');
+    trigger.disabled = true;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 35000);
+    toast("正在请求本地已配置的大模型接口");
+    try {
+      const res = await fetch("/api/script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(draft),
+        signal: controller.signal,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "模型接口未配置");
+      if (revision !== contentRevision || state.page !== "content") {
+        globalThis.RetailAdvanced.snapshot(
+          "模型结果已过期",
+          { productId: draft.productId },
+          { discarded: true },
+        );
+        toast("输入已变化，旧模型结果已丢弃，请按当前配置重新生成");
+        return;
+      }
+      state.script = data.script;
+      globalThis.RetailAdvanced.snapshot(
+        "模型脚本生成",
+        { productId: draft.productId, terms: draft.terms },
+        { script: data.script, provider: data.provider, usage: data.usage },
+      );
+      state.approved = false;
+      save("script", state.script);
+      save("approved", false);
+      $("#scriptBox").innerHTML = scriptHtml(state.script);
+      $("#approveContent").checked = false;
+      toast("模型脚本已生成，请人工核对");
+    } catch (e) {
+      globalThis.RetailAdvanced.snapshot(
+        "模型脚本失败",
+        { productId: draft.productId },
+        { error: String(e.message || e).slice(0, 200) },
+      );
+      toast("未生成：本地接口未连接或模型未配置");
+    } finally {
+      clearTimeout(timer);
+      if (document.body.contains(trigger)) trigger.disabled = false;
+    }
+  }
+  const oatVisual = new Image();
+  oatVisual.src = "assets/oat-drink-ai.png";
+  function videoFrame(ctx, script, t) {
+    const p = C.product(script.productId),
+      w = 1280,
+      h = 720,
+      scene = Math.min(2, Math.floor(t / 5));
+    const bg = ctx.createLinearGradient(0, 0, w, h);
+    bg.addColorStop(0, "#102e3c");
+    bg.addColorStop(1, "#12645e");
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    if (
+      script.productId === 1 &&
+      oatVisual.complete &&
+      oatVisual.naturalWidth
+    ) {
+      ctx.drawImage(oatVisual, 0, 0, w, h);
+      const shade = ctx.createLinearGradient(0, 0, w, 0);
+      shade.addColorStop(0, "#061c23e8");
+      shade.addColorStop(0.65, "#061c2340");
+      shade.addColorStop(1, "#061c2300");
+      ctx.fillStyle = shade;
+      ctx.fillRect(0, 0, w, h);
+    }
+    ctx.fillStyle = "#ffffff08";
+    ctx.beginPath();
+    ctx.arc(1040, 350, 360, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#82d8c7";
+    ctx.font = '22px "Microsoft YaHei", sans-serif';
+    ctx.fillText("RETAIL OS  /  日常好物", 84, 94);
+    ctx.fillStyle = "white";
+    ctx.font = 'bold 55px "Microsoft YaHei", sans-serif';
+    ctx.fillText(p.name, 80, 235);
+    ctx.font = '30px "Microsoft YaHei", sans-serif';
+    const caption = script.scenes[scene].caption;
+    ctx.fillStyle = "#d3e5e0";
+    for (let i = 0; i < caption.length; i += 18)
+      ctx.fillText(caption.slice(i, i + 18), 84, 320 + Math.floor(i / 18) * 45);
+    ctx.fillStyle = "#9ee4c5";
+    ctx.font = 'bold 66px "Microsoft YaHei", sans-serif';
+    ctx.fillText(money(script.price, 2), 80, 505);
+    ctx.fillStyle = "#c3d5d7";
+    ctx.font = '19px "Microsoft YaHei", sans-serif';
+    ctx.fillText(script.terms.slice(0, 45), 84, 620);
+    if (
+      script.productId !== 1 ||
+      !oatVisual.complete ||
+      !oatVisual.naturalWidth
+    ) {
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.roundRect(930, 200, 155, 310, 24);
+      ctx.fill();
+      ctx.fillStyle = "#e8efea";
+      ctx.fillRect(950, 184, 115, 28);
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 30px sans-serif";
+      ctx.fillText("RETAIL", 952, 325);
+      ctx.font = '24px "Microsoft YaHei", sans-serif';
+      ctx.fillText(p.category, 982, 380);
+    }
+    ctx.fillStyle = "#8fd7c5";
+    ctx.fillRect(80, 670, 1120 * Math.min(t / 15, 1), 4);
+  }
+  async function renderVideo() {
+    if (!state.script) {
+      toast("请先生成当前商品脚本");
+      return;
+    }
+    if (
+      !state.approved ||
+      read("approval", null)?.signature !==
+        globalThis.RetailAdvanced.signature(state.script)
+    ) {
+      toast("请先核对当前版本脚本并勾选审核项");
+      return;
+    }
+    if (
+      !globalThis.MediaRecorder ||
+      !HTMLCanvasElement.prototype.captureStream
+    ) {
+      toast("当前浏览器不支持视频合成，请下载内置MP4样片");
+      return;
+    }
+    const script = structuredClone(state.script),
+      canvas = document.createElement("canvas");
+    canvas.width = 1280;
+    canvas.height = 720;
+    const ctx = canvas.getContext("2d");
+    const frame = $(".video-frame");
+    frame.innerHTML = "";
+    frame.append(canvas);
+    const stream = canvas.captureStream(25),
+      mime = [
+        "video/webm;codecs=vp9",
+        "video/webm;codecs=vp8",
+        "video/webm",
+      ].find((t) => MediaRecorder.isTypeSupported(t));
+    if (!mime) {
+      toast("浏览器无可用WebM编码器，请下载内置样片");
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    const rec = new MediaRecorder(stream, {
+        mimeType: mime,
+        videoBitsPerSecond: 2000000,
+      }),
+      chunks = [];
+    rec.ondataavailable = (e) => {
+      if (e.data.size) chunks.push(e.data);
+    };
+    const btn = document.querySelector('[data-action="render-video"]');
+    btn.disabled = true;
+    const start = performance.now();
+    try {
+      const done = new Promise((resolve, reject) => {
+        rec.onstop = resolve;
+        rec.onerror = reject;
+      });
+      rec.start();
+      await new Promise((resolve) => {
+        const tick = () => {
+          const t = (performance.now() - start) / 1000;
+          videoFrame(ctx, script, Math.min(t, 15));
+          const status = $("#renderStatus");
+          if (status)
+            status.textContent = `正在合成 ${Math.min(Math.round((t / 15) * 100), 100)}% · 约15秒 · 无声WebM`;
+          if (t < 15) requestAnimationFrame(tick);
+          else resolve();
+        };
+        tick();
+      });
+      rec.stop();
+      await done;
+      const blob = new Blob(chunks, { type: "video/webm" }),
+        url = URL.createObjectURL(blob);
+      if (document.body.contains(frame)) {
+        frame.innerHTML = `<video controls autoplay src="${url}"></video>`;
+        $("#renderStatus").textContent =
+          `合成完成 · 实际 ${((performance.now() - start) / 1000) | 0} 秒 · ${(blob.size / 1048576).toFixed(2)} MB · 已按审核脚本导出`;
+      }
+      download(script.productName + "-营销演示.webm", blob);
+      globalThis.RetailAdvanced.snapshot(
+        "浏览器视频合成",
+        {
+          productId: script.productId,
+          scriptSignature: globalThis.RetailAdvanced.signature(script),
+        },
+        { bytes: blob.size, seconds: 15, format: "silent-webm" },
+      );
+      toast("视频已合成并开始下载");
+      setTimeout(() => URL.revokeObjectURL(url), 600000);
+    } catch (e) {
+      toast("合成失败，可下载内置MP4样片");
+    } finally {
+      stream.getTracks().forEach((t) => t.stop());
+      if (btn) btn.disabled = false;
+    }
+  }
+  render();
 })();

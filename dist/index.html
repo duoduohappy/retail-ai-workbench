@@ -1,6 +1,68 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="零售经营与AI决策工作台：基于模拟数据的完整面试演示项目"><title>RETAIL OS · 零售经营与AI决策工作台</title><link rel="stylesheet" href="style.css"></head>
-<body><aside class="sidebar"><a class="brand" href="#overview"><span class="brand-mark">R</span><span>RETAIL<span class="brand-light"> OS</span><small>经营与AI决策工作台</small></span></a><div class="workspace">演示工作空间 <span>LAB</span></div><nav id="nav" aria-label="主导航"></nav><div class="sidebar-bottom"><div class="live-label"><span></span> 本地数据引擎已就绪</div><p>虚构业务 · 可复现数据<br>独立开发的面试演示作品</p><button class="ghost dark" id="guideButton">查看演示路线</button></div></aside>
-<div class="shell"><header><div class="breadcrumb">工作空间 <span>/</span> <strong id="breadcrumb">经营驾驶舱</strong></div><div class="header-right"><span class="badge">模拟数据</span><span class="asof">数据截至 2026.11.22</span><button class="icon-button" id="dictionaryButton" title="指标口径" aria-label="查看指标口径">?</button><span class="avatar">候</span></div></header><main id="main"></main><footer><span>RETAIL OS · Interview Lab</span><span>规则与统计计算可用 · 外部检索及大模型未连接</span></footer></div>
-<dialog id="modal"><div class="modal-head"><h2 id="modalTitle"></h2><button class="icon-button" id="modalClose" aria-label="关闭">×</button></div><div id="modalBody"></div></dialog><div id="toast" role="status"></div>
-<script src="data.js"></script><script src="core.js"></script><script src="app.js"></script></body></html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      name="description"
+      content="零售经营与AI决策工作台：基于模拟数据的完整面试演示项目"
+    />
+    <title>RETAIL OS · 零售经营与AI决策工作台</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <a class="brand" href="#overview"
+        ><span class="brand-mark">R</span
+        ><span
+          >RETAIL<span class="brand-light"> OS</span
+          ><small>经营与AI决策工作台</small></span
+        ></a
+      >
+      <div class="workspace">演示工作空间 <span>LAB</span></div>
+      <nav id="nav" aria-label="主导航"></nav>
+      <div class="sidebar-bottom">
+        <div class="live-label"><span></span> 本地数据引擎已就绪</div>
+        <p>虚构业务 · 可复现数据<br />独立开发的面试演示作品</p>
+        <button class="ghost dark" id="guideButton">查看演示路线</button>
+      </div>
+    </aside>
+    <div class="shell">
+      <header>
+        <div class="breadcrumb">
+          工作空间 <span>/</span> <strong id="breadcrumb">经营驾驶舱</strong>
+        </div>
+        <div class="header-right">
+          <span class="badge">模拟数据</span
+          ><span class="asof">数据截至 2026.11.22</span
+          ><button
+            class="icon-button"
+            id="dictionaryButton"
+            title="指标口径"
+            aria-label="查看指标口径"
+          >
+            ?</button
+          ><span class="avatar">候</span>
+        </div>
+      </header>
+      <main id="main"></main>
+      <footer>
+        <span>RETAIL OS · Interview Lab</span
+        ><span>规则与统计计算可用 · 外部检索及大模型未连接</span>
+      </footer>
+    </div>
+    <dialog id="modal">
+      <div class="modal-head">
+        <h2 id="modalTitle"></h2>
+        <button class="icon-button" id="modalClose" aria-label="关闭">×</button>
+      </div>
+      <div id="modalBody"></div>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <script src="data.js"></script>
+    <script src="core.js"></script>
+    <script src="advanced.js"></script>
+    <script src="advanced-ui.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
