@@ -76,6 +76,28 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path != '/api/script':
             self.respond(404, {'error': 'Unknown endpoint'})
             return
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+        except ValueError:
+            self.respond(400, {'error': 'Invalid content length'})
+            return
+        if not 0 < length <= 12000:
+            # Drain modest rejected payloads before closing, avoiding a Windows
+            # TCP reset that can hide the HTTP error response from the caller.
+            if 0 < length <= 65536:
+                self.connection.settimeout(10)
+                try:
+                    self.rfile.read(length)
+                except OSError:
+                    pass
+            self.respond(413, {'error': 'Request too large'})
+            return
+        self.connection.settimeout(10)
+        try:
+            raw_body=self.rfile.read(length)
+        except OSError:
+            self.respond(408, {'error':'请求内容读取超时'})
+            return
         origin = self.headers.get('Origin')
         if self.headers.get('Host') not in allowed_hosts(self.server.server_port):
             self.respond(403, {'error': '不允许的Host'})
@@ -83,19 +105,11 @@ class Handler(SimpleHTTPRequestHandler):
         if origin and urllib.parse.urlparse(origin).netloc != self.headers.get('Host'):
             self.respond(403, {'error': '仅允许同源调用'})
             return
-        try:
-            length = int(self.headers.get('Content-Length', '0'))
-        except ValueError:
-            self.respond(400, {'error': 'Invalid content length'})
-            return
-        if not 0 < length <= 12000:
-            self.respond(413, {'error': 'Request too large'})
-            return
         if not self.headers.get('Content-Type','').lower().startswith('application/json'):
             self.respond(415, {'error':'仅接受application/json'})
             return
         try:
-            draft=validate_draft(json.loads(self.rfile.read(length)))
+            draft=validate_draft(json.loads(raw_body))
         except (ValueError,KeyError,TypeError):
             self.respond(400, {'error':'脚本输入无效：请检查商品、整数分价格与三段分镜'})
             return

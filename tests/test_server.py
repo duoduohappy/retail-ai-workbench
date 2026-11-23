@@ -57,7 +57,9 @@ class APIIntegration(unittest.TestCase):
             code,data=self.request(self.draft());self.assertEqual(code,503);self.assertIn('模板',data['error'])
 
     def test_cross_origin_is_rejected(self):
-        code,_=self.request(self.draft(),origin='https://untrusted.test');self.assertEqual(code,403)
+        for size in [64,1024,8192]:
+            draft=self.draft();draft['padding']='x'*size
+            code,_=self.request(draft,origin='https://untrusted.test');self.assertEqual(code,403)
 
     def test_render_hostname_accepts_same_origin_without_disabling_host_checks(self):
         with patch.dict(os.environ,{'RENDER_EXTERNAL_HOSTNAME':'retail-test.onrender.com'},clear=True):
