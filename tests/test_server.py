@@ -59,6 +59,21 @@ class APIIntegration(unittest.TestCase):
     def test_cross_origin_is_rejected(self):
         code,_=self.request(self.draft(),origin='https://untrusted.test');self.assertEqual(code,403)
 
+    def test_render_hostname_accepts_same_origin_without_disabling_host_checks(self):
+        with patch.dict(os.environ,{'RENDER_EXTERNAL_HOSTNAME':'retail-test.onrender.com'},clear=True):
+            req=urllib.request.Request(self.url+'/api/script',data=json.dumps(self.draft()).encode(),headers={'Content-Type':'application/json','Host':'retail-test.onrender.com','Origin':'https://retail-test.onrender.com'})
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req,timeout=5)
+            self.assertEqual(ctx.exception.code,503)
+            self.assertIn('模板',json.load(ctx.exception)['error'])
+
+    def test_unknown_cloud_hostname_remains_blocked(self):
+        with patch.dict(os.environ,{'RENDER_EXTERNAL_HOSTNAME':'retail-test.onrender.com'},clear=True):
+            req=urllib.request.Request(self.url+'/api/script',data=json.dumps(self.draft()).encode(),headers={'Content-Type':'application/json','Host':'unknown.onrender.com'})
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(req,timeout=5)
+            self.assertEqual(ctx.exception.code,403)
+
     def test_content_type_and_payload_limits(self):
         self.assertEqual(self.request(self.draft(),content_type='text/plain')[0],415)
         self.assertEqual(self.request(b'x'*12001)[0],413)

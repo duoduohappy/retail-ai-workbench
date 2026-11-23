@@ -1,0 +1,2 @@
+# The demo server uses only the Python standard library.
+# Node/jsdom are development-only test dependencies and are not needed on Render.

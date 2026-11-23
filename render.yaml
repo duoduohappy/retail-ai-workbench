@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: retail-ai-workbench
+    runtime: python
+    plan: free
+    branch: main
+    buildCommand: python -m compileall -q server.py
+    startCommand: python server.py --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: 'off'
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11

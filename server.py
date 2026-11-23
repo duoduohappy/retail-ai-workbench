@@ -13,6 +13,14 @@ import sqlite3
 
 ROOT = Path(__file__).resolve().parent
 
+def allowed_hosts(port):
+    hosts={f'127.0.0.1:{port}',f'localhost:{port}',f'[::1]:{port}'}
+    render_host=os.getenv('RENDER_EXTERNAL_HOSTNAME','').strip()
+    if render_host:
+        hosts.add(render_host)
+    hosts.update(h.strip() for h in os.getenv('RETAIL_ALLOWED_HOSTS','').split(',') if h.strip())
+    return hosts
+
 def model_config():
     endpoint = os.getenv('RETAIL_LLM_ENDPOINT', '')
     model = os.getenv('RETAIL_LLM_MODEL', '')
@@ -69,8 +77,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.respond(404, {'error': 'Unknown endpoint'})
             return
         origin = self.headers.get('Origin')
-        allowed_hosts={f'127.0.0.1:{self.server.server_port}',f'localhost:{self.server.server_port}',f'[::1]:{self.server.server_port}'}
-        if self.headers.get('Host') not in allowed_hosts:
+        if self.headers.get('Host') not in allowed_hosts(self.server.server_port):
             self.respond(403, {'error': '不允许的Host'})
             return
         if origin and urllib.parse.urlparse(origin).netloc != self.headers.get('Host'):
@@ -127,11 +134,12 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, default=8787)
+    parser.add_argument('--port', type=int, default=int(os.getenv('PORT','8787')))
+    parser.add_argument('--host', default='0.0.0.0' if os.getenv('RENDER')=='true' else '127.0.0.1')
     parser.add_argument('--open', action='store_true')
     args = parser.parse_args()
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), partial(Handler, directory=str(ROOT/'dist')))
-    url = f'http://127.0.0.1:{args.port}'
+    server = ThreadingHTTPServer((args.host, args.port), partial(Handler, directory=str(ROOT/'dist')))
+    url = f'http://127.0.0.1:{server.server_port}'
     print(f'Retail AI Workbench: {url}', flush=True)
     if args.open:
         webbrowser.open(url)

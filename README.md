@@ -2,6 +2,10 @@
 
 ![CI](https://github.com/duoduohappy/retail-ai-workbench/actions/workflows/ci.yml/badge.svg)
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/duoduohappy/retail-ai-workbench)
+
+手动发布Render：点击上方按钮，检查Blueprint后由你确认部署。已配置Python Web Service、PORT、健康检查与关闭自动部署；完整步骤见[Render部署说明](docs/Render部署.md)。实际访问域名会在Render创建服务后生成。
+
 当前版本：**v0.2.0**。第二版补充按问题检索、证据不足处理、价格敏感性分析、实验样本与结果评估、版本关联的内容核对、运行快照，以及实际AI静态素材与有声视频案例。
 
 针对“零售数字化与AI技术主管”岗位自主开发的面试演示项目。全部门店、商品、会员、竞品和交易均为虚构，不使用目标企业内部资料。
@@ -65,7 +69,7 @@ npm test
 npm run test:python
 ```
 
-当前本地验收：32项Node测试（含7项JSDOM集成测试）与13项Python数据/HTTP集成测试通过，共45项。模型响应使用受控替身测试成功、格式错误及超时路径，不代表实际外部模型已联通。GitHub Actions配置Linux与Windows检查；远程结果须以仓库Actions实际运行结果为准。
+当前本地验收：32项Node测试（含7项JSDOM集成测试）与15项Python数据/HTTP集成测试通过，共47项。模型响应使用受控替身测试成功、格式错误及超时路径，不代表实际外部模型已联通。GitHub Actions配置Linux与Windows检查；远程结果须以仓库Actions实际运行结果为准。
 
 JSDOM在Node中验证真实应用事件处理与DOM状态，不能证明真实浏览器的视觉布局、音视频播放、编码器或下载兼容性。首版已实测桌面浏览器；第二版用户选择先进行自动化测试，未完成真实浏览器回归。详细边界见 `docs/第二版验收记录.md`。
 
