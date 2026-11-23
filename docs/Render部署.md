@@ -24,7 +24,7 @@ https://render.com/deploy?repo=https://github.com/duoduohappy/retail-ai-workbenc
 | Branch | main |
 | Root Directory | 留空 |
 | Runtime | Python 3 |
-| Build Command | python -m compileall -q server.py |
+| Build Command | python -m compileall -q server.py model_server.py llm_service.py |
 | Start Command | python server.py --host 0.0.0.0 --port $PORT |
 | Health Check Path | /api/health |
 | Auto-Deploy | Off |
@@ -37,6 +37,8 @@ https://render.com/deploy?repo=https://github.com/duoduohappy/retail-ai-workbenc
 - /api/health返回200及ok:true。modelConfigured:false表示尚未配置外部模型，不影响默认演示。
 - 内容工厂中的15秒有声样片可播放。
 - 可运行研究、促销与模拟实验，并能导出文件。
+- 会员与策略中心的“真实公开数据”展示UCI历史数据、英镑金额和推荐对照。
+- 若需真实千问调用，按[千问接入与免费额度](千问接入与免费额度.md)配置环境变量，再从“AI服务”手动验证。配置完成不等于已验证联通。
 
 本次仅准备并测试了部署配置，未代为创建Render服务，未声称完成实际Render部署。默认不配置外部模型密钥，页面的统计、资料检索、模板脚本和内置AI素材可独立使用。
 

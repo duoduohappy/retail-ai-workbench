@@ -1,0 +1,2 @@
+# Optional: needed only to rebuild the reviewed public-data analysis.
+openpyxl==3.1.5

@@ -320,6 +320,7 @@
         ["recommend", "商品推荐"],
         ["pricing", "定价与促销模拟"],
         ["experiments", "试点与评测"],
+        ["public", "真实公开数据"],
       ]
         .map(
           ([id, label]) =>
@@ -332,7 +333,7 @@
           ? recommendView()
           : state.tab === "pricing"
             ? pricingView()
-            : globalThis.RetailExtra.experiments())
+            : state.tab === "public" ? globalThis.RetailReal.dashboard() : globalThis.RetailExtra.experiments())
     );
   }
   function membersView(rows) {
@@ -465,7 +466,7 @@
       ],
     };
   }
-  function researchView() {
+  function baseResearchView() {
     const report = state.report;
     return (
       heading(
@@ -486,6 +487,8 @@
       )}</div><div class="notice warn">工作流会执行日期检查和同源去重；导入文本的事实真实性需人工核实。报告使用结构化模板，未调用大模型，且不代表完成了互联网调研。</div>`
     );
   }
+  function researchView(){return baseResearchView()+globalThis.RetailReal.researchControls();}
+  globalThis.RetailResearchContext=()=>{const question=document.querySelector("#researchForm textarea")?.value||state.report?.question||"";const result=C.research(question,state.evidence);return {question,sources:result.accepted.slice(0,8)};};
   function reportHtml(r) {
     return `<h3>${esc(r.question)}</h3><p>${esc(r.summary)}</p>${r.quality ? `<div class="notice">${esc(r.quality.method)} · ${r.quality.independentSources} 个独立原始信源 · ${esc(r.quality.coverage)}</div>` : ""}<h3>匹配证据与原文</h3>${r.claims.map((c) => `<blockquote>${esc(c.text)} ${c.evidence.map((id) => `<button class="citation" data-evidence="${esc(id)}">${esc(id)}</button>`).join("")}<div class="mini-label">${esc(c.type)} · ${c.synthetic ? "模拟证据" : "用户提供，未独立核实"}</div></blockquote>`).join("") || "<p>没有足够的匹配证据，未生成外部事实结论。</p>"}<h3>待验证判断</h3>${(r.hypotheses || []).map((h) => `<p>${esc(h)}</p>`).join("") || "<p>资料不足，暂不形成业务判断。</p>"}<h3>下一步</h3><p>${esc(r.recommendation)}</p><h3>排除与质量检查</h3>${r.excluded.map((e) => `<p>${pill(e.id, "gray")} ${esc(e.title)}：${esc(e.reason)}</p>`).join("") || "<p>无排除记录。</p>"}<p class="data-note">${esc(r.limitations)}</p>`;
   }
@@ -541,6 +544,7 @@
       research: researchView,
       projects,
     }[state.page]();
+    const realData=state.page==="strategy"&&state.tab==="public";document.querySelector(".header-right .badge").textContent=realData?"公开历史数据":"模拟数据";document.querySelector(".asof").textContent="数据截至 "+(realData?globalThis.PUBLIC_RETAIL.meta.end:D.meta.asOf);
     window.scrollTo(0, 0);
   }
   function go(page, tab) {
@@ -1023,14 +1027,7 @@
     const timer = setTimeout(() => controller.abort(), 35000);
     toast("正在请求本地已配置的大模型接口");
     try {
-      const res = await fetch("/api/script", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-        signal: controller.signal,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "模型接口未配置");
+      const data = await globalThis.RetailModel.request("/api/script", draft, {signal:controller.signal});
       if (revision !== contentRevision || state.page !== "content") {
         globalThis.RetailAdvanced.snapshot(
           "模型结果已过期",
@@ -1058,7 +1055,7 @@
         { productId: draft.productId },
         { error: String(e.message || e).slice(0, 200) },
       );
-      toast("未生成：本地接口未连接或模型未配置");
+      toast("未生成：" + e.message);
     } finally {
       clearTimeout(timer);
       if (document.body.contains(trigger)) trigger.disabled = false;

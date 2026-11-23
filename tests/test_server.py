@@ -15,6 +15,12 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import server
 
 class APIIntegration(unittest.TestCase):
+    def setUp(self):
+        import llm_service
+        import model_server
+        with llm_service.BUDGET.lock: llm_service.BUDGET.calls=0
+        model_server.VERIFICATIONS.clear()
+
     @classmethod
     def setUpClass(cls):
         class Quiet(server.Handler):

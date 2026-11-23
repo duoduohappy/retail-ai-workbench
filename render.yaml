@@ -4,10 +4,16 @@ services:
     runtime: python
     plan: free
     branch: main
-    buildCommand: python -m compileall -q server.py
+    buildCommand: python -m compileall -q server.py model_server.py llm_service.py
     startCommand: python server.py --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
-    autoDeployTrigger: 'off'
+    autoDeployTrigger: "off"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.11
+      - key: RETAIL_LLM_MODEL
+        value: qwen4-max
+      - key: RETAIL_LLM_MAX_CALLS
+        value: "20"
+      - key: RETAIL_LLM_MAX_OUTPUT_TOKENS
+        value: "1800"

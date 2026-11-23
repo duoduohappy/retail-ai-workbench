@@ -1,0 +1,832 @@
+{
+  "meta": {
+    "name": "UCI Online Retail",
+    "sourceUrl": "https://archive.ics.uci.edu/dataset/352/online+retail",
+    "downloadUrl": "https://archive.ics.uci.edu/static/public/352/online+retail.zip",
+    "license": "CC BY 4.0",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Chen, D. (2015). Online Retail [Dataset]. UCI Machine Learning Repository. https://doi.org/10.24432/C5BW33",
+    "archiveSha256": "f5385cbb54bbebf7196389109c6b0621faab0c304e3702548165e71c84aede8b",
+    "generatedOn": "2026-11-23",
+    "start": "2010-12-01",
+    "end": "2011-12-09",
+    "currency": "GBP",
+    "moneyUnit": "pence",
+    "historical": true,
+    "synthetic": false
+  },
+  "quality": {
+    "rawRows": 541909,
+    "acceptedRows": 536494,
+    "excludedRows": {
+      "nonmerchandise": 2894,
+      "nonpositive_price": 2521
+    },
+    "acceptedRowsMissingCustomerId": 131618,
+    "positiveInvoices": 19774,
+    "cancellationInvoices": 3422,
+    "distinctCustomerIds": 4362,
+    "products": 3927
+  },
+  "summary": {
+    "positiveSales": 1028318093,
+    "cancellationAmount": 47872418,
+    "netAmount": 980445675,
+    "positiveUnits": 5577134
+  },
+  "monthly": [
+    {
+      "month": "2010-12",
+      "positiveSales": 77800836,
+      "cancellationAmount": 1760786,
+      "rows": 42015,
+      "netAmount": 76040050,
+      "partial": false
+    },
+    {
+      "month": "2011-01",
+      "positiveSales": 67199241,
+      "cancellationAmount": 9152630,
+      "rows": 34830,
+      "netAmount": 58046611,
+      "partial": false
+    },
+    {
+      "month": "2011-02",
+      "positiveSales": 50895287,
+      "cancellationAmount": 837587,
+      "rows": 27385,
+      "netAmount": 50057700,
+      "partial": false
+    },
+    {
+      "month": "2011-03",
+      "positiveSales": 69126594,
+      "cancellationAmount": 1067530,
+      "rows": 36250,
+      "netAmount": 68059064,
+      "partial": false
+    },
+    {
+      "month": "2011-04",
+      "positiveSales": 51630979,
+      "cancellationAmount": 3331691,
+      "rows": 29491,
+      "netAmount": 48299288,
+      "partial": false
+    },
+    {
+      "month": "2011-05",
+      "positiveSales": 74127574,
+      "cancellationAmount": 894823,
+      "rows": 36541,
+      "netAmount": 73232751,
+      "partial": false
+    },
+    {
+      "month": "2011-06",
+      "positiveSales": 73887688,
+      "cancellationAmount": 1376084,
+      "rows": 36447,
+      "netAmount": 72511604,
+      "partial": false
+    },
+    {
+      "month": "2011-07",
+      "positiveSales": 68939774,
+      "cancellationAmount": 1140921,
+      "rows": 39086,
+      "netAmount": 67798853,
+      "partial": false
+    },
+    {
+      "month": "2011-08",
+      "positiveSales": 73666722,
+      "cancellationAmount": 2292952,
+      "rows": 34949,
+      "netAmount": 71373770,
+      "partial": false
+    },
+    {
+      "month": "2011-09",
+      "positiveSales": 103050036,
+      "cancellationAmount": 1704468,
+      "rows": 49817,
+      "netAmount": 101345568,
+      "partial": false
+    },
+    {
+      "month": "2011-10",
+      "positiveSales": 110668649,
+      "cancellationAmount": 4399216,
+      "rows": 60195,
+      "netAmount": 106269433,
+      "partial": false
+    },
+    {
+      "month": "2011-11",
+      "positiveSales": 145774553,
+      "cancellationAmount": 2501054,
+      "rows": 84108,
+      "netAmount": 143273499,
+      "partial": false
+    },
+    {
+      "month": "2011-12",
+      "positiveSales": 61550160,
+      "cancellationAmount": 17412676,
+      "rows": 25380,
+      "netAmount": 44137484,
+      "partial": true
+    }
+  ],
+  "countries": [
+    {
+      "country": "United Kingdom",
+      "positiveSales": 875930953,
+      "cancellationAmount": 44584338,
+      "rows": 491399,
+      "netAmount": 831346615
+    },
+    {
+      "country": "Netherlands",
+      "positiveSales": 28388934,
+      "cancellationAmount": 40980,
+      "rows": 2326,
+      "netAmount": 28347954
+    },
+    {
+      "country": "EIRE",
+      "positiveSales": 27116430,
+      "cancellationAmount": 1150084,
+      "rows": 8071,
+      "netAmount": 25966346
+    },
+    {
+      "country": "Germany",
+      "positiveSales": 20556989,
+      "cancellationAmount": 476149,
+      "rows": 9095,
+      "netAmount": 20080840
+    },
+    {
+      "country": "France",
+      "positiveSales": 18458274,
+      "cancellationAmount": 241935,
+      "rows": 8234,
+      "netAmount": 18216339
+    },
+    {
+      "country": "Australia",
+      "positiveSales": 13817131,
+      "cancellationAmount": 118131,
+      "rows": 1254,
+      "netAmount": 13699000
+    },
+    {
+      "country": "Switzerland",
+      "positiveSales": 5308790,
+      "cancellationAmount": 58255,
+      "rows": 1968,
+      "netAmount": 5250535
+    },
+    {
+      "country": "Spain",
+      "positiveSales": 5572511,
+      "cancellationAmount": 395991,
+      "rows": 2467,
+      "netAmount": 5176520
+    },
+    {
+      "country": "Belgium",
+      "positiveSales": 3692734,
+      "cancellationAmount": 26438,
+      "rows": 1971,
+      "netAmount": 3666296
+    },
+    {
+      "country": "Japan",
+      "positiveSales": 3741637,
+      "cancellationAmount": 199658,
+      "rows": 355,
+      "netAmount": 3541979
+    },
+    {
+      "country": "Sweden",
+      "positiveSales": 3683933,
+      "cancellationAmount": 166242,
+      "rows": 437,
+      "netAmount": 3517691
+    },
+    {
+      "country": "Norway",
+      "positiveSales": 3245464,
+      "cancellationAmount": 16168,
+      "rows": 1059,
+      "netAmount": 3229296
+    },
+    {
+      "country": "Portugal",
+      "positiveSales": 2701516,
+      "cancellationAmount": 14364,
+      "rows": 1475,
+      "netAmount": 2687152
+    },
+    {
+      "country": "Channel Islands",
+      "positiveSales": 2000744,
+      "cancellationAmount": 7115,
+      "rows": 753,
+      "netAmount": 1993629
+    },
+    {
+      "country": "Finland",
+      "positiveSales": 1834488,
+      "cancellationAmount": 4134,
+      "rows": 653,
+      "netAmount": 1830354
+    },
+    {
+      "country": "Denmark",
+      "positiveSales": 1821134,
+      "cancellationAmount": 16920,
+      "rows": 375,
+      "netAmount": 1804214
+    },
+    {
+      "country": "Italy",
+      "positiveSales": 1582024,
+      "cancellationAmount": 54390,
+      "rows": 783,
+      "netAmount": 1527634
+    },
+    {
+      "country": "Cyprus",
+      "positiveSales": 1325469,
+      "cancellationAmount": 32340,
+      "rows": 619,
+      "netAmount": 1293129
+    },
+    {
+      "country": "Hong Kong",
+      "positiveSales": 995299,
+      "cancellationAmount": 1095,
+      "rows": 280,
+      "netAmount": 994204
+    },
+    {
+      "country": "Singapore",
+      "positiveSales": 912039,
+      "cancellationAmount": 0,
+      "rows": 215,
+      "netAmount": 912039
+    },
+    {
+      "country": "Austria",
+      "positiveSales": 874268,
+      "cancellationAmount": 4436,
+      "rows": 387,
+      "netAmount": 869832
+    },
+    {
+      "country": "Israel",
+      "positiveSales": 813526,
+      "cancellationAmount": 22744,
+      "rows": 297,
+      "netAmount": 790782
+    },
+    {
+      "country": "Poland",
+      "positiveSales": 697465,
+      "cancellationAmount": 12151,
+      "rows": 336,
+      "netAmount": 685314
+    },
+    {
+      "country": "Unspecified",
+      "positiveSales": 474979,
+      "cancellationAmount": 0,
+      "rows": 446,
+      "netAmount": 474979
+    },
+    {
+      "country": "Greece",
+      "positiveSales": 442552,
+      "cancellationAmount": 0,
+      "rows": 142,
+      "netAmount": 442552
+    },
+    {
+      "country": "Iceland",
+      "positiveSales": 431000,
+      "cancellationAmount": 0,
+      "rows": 182,
+      "netAmount": 431000
+    },
+    {
+      "country": "Canada",
+      "positiveSales": 311544,
+      "cancellationAmount": 0,
+      "rows": 150,
+      "netAmount": 311544
+    },
+    {
+      "country": "Malta",
+      "positiveSales": 207059,
+      "cancellationAmount": 9012,
+      "rows": 123,
+      "netAmount": 198047
+    },
+    {
+      "country": "United Arab Emirates",
+      "positiveSales": 186478,
+      "cancellationAmount": 0,
+      "rows": 67,
+      "netAmount": 186478
+    },
+    {
+      "country": "USA",
+      "positiveSales": 358039,
+      "cancellationAmount": 184947,
+      "rows": 291,
+      "netAmount": 173092
+    },
+    {
+      "country": "Lebanon",
+      "positiveSales": 169388,
+      "cancellationAmount": 0,
+      "rows": 45,
+      "netAmount": 169388
+    },
+    {
+      "country": "Lithuania",
+      "positiveSales": 166106,
+      "cancellationAmount": 0,
+      "rows": 35,
+      "netAmount": 166106
+    },
+    {
+      "country": "European Community",
+      "positiveSales": 115925,
+      "cancellationAmount": 850,
+      "rows": 58,
+      "netAmount": 115075
+    },
+    {
+      "country": "Brazil",
+      "positiveSales": 114360,
+      "cancellationAmount": 0,
+      "rows": 32,
+      "netAmount": 114360
+    },
+    {
+      "country": "RSA",
+      "positiveSales": 100231,
+      "cancellationAmount": 0,
+      "rows": 57,
+      "netAmount": 100231
+    },
+    {
+      "country": "Czech Republic",
+      "positiveSales": 78674,
+      "cancellationAmount": 11502,
+      "rows": 28,
+      "netAmount": 67172
+    },
+    {
+      "country": "Bahrain",
+      "positiveSales": 75414,
+      "cancellationAmount": 20574,
+      "rows": 19,
+      "netAmount": 54840
+    },
+    {
+      "country": "Saudi Arabia",
+      "positiveSales": 14592,
+      "cancellationAmount": 1475,
+      "rows": 10,
+      "netAmount": 13117
+    }
+  ],
+  "recommendation": {
+    "trainEnd": "2011-11-09",
+    "testStart": "2011-11-10",
+    "testEnd": "2011-12-09",
+    "trainingInvoices": 14188,
+    "testInvoices": 2391,
+    "eligibleUsers": 1019,
+    "candidateProducts": 500,
+    "k": 10,
+    "personalized": {
+      "hitRate": 0.38371,
+      "recall": 0.104672,
+      "ndcg": 0.102637
+    },
+    "baseline": {
+      "hitRate": 0.232581,
+      "recall": 0.041212,
+      "ndcg": 0.042576
+    },
+    "pairedNdcgDifference95CI": [
+      0.050102,
+      0.070669
+    ],
+    "bootstrapResamples": 1000,
+    "candidateFutureItemCoverage": 0.364896,
+    "skippedLargeBasketsForPairs": 14,
+    "examples": [
+      {
+        "customer": "公开会员-6bebd3b1",
+        "history": [
+          [
+            "82484",
+            7
+          ],
+          [
+            "21136",
+            6
+          ],
+          [
+            "84879",
+            6
+          ],
+          [
+            "82482",
+            5
+          ],
+          [
+            "82494L",
+            5
+          ]
+        ],
+        "recommended": [
+          "82483",
+          "21931",
+          "85099C",
+          "23203",
+          "21928",
+          "21755",
+          "20725",
+          "22470",
+          "23202",
+          "47566"
+        ],
+        "heldOut": [
+          "85099C"
+        ],
+        "hits": [
+          "85099C"
+        ]
+      },
+      {
+        "customer": "公开会员-c1b2cf10",
+        "history": [
+          [
+            "21034",
+            24
+          ],
+          [
+            "21930",
+            11
+          ],
+          [
+            "22993",
+            11
+          ],
+          [
+            "47566",
+            10
+          ],
+          [
+            "22197",
+            10
+          ]
+        ],
+        "recommended": [
+          "22966",
+          "23204",
+          "23322",
+          "22652",
+          "82580",
+          "22326",
+          "82583",
+          "22413",
+          "82581",
+          "82551"
+        ],
+        "heldOut": [
+          "20750",
+          "21137",
+          "21385",
+          "21484",
+          "21498",
+          "21670",
+          "21918",
+          "22041",
+          "22114",
+          "22169",
+          "22191",
+          "22418",
+          "22487",
+          "22619",
+          "22751",
+          "22966",
+          "23103",
+          "23144",
+          "23188",
+          "23293",
+          "23322",
+          "23439",
+          "23503",
+          "82551",
+          "82580",
+          "82581",
+          "82583"
+        ],
+        "hits": [
+          "22966",
+          "23322",
+          "82551",
+          "82580",
+          "82581",
+          "82583"
+        ]
+      },
+      {
+        "customer": "公开会员-cd85942f",
+        "history": [
+          [
+            "22077",
+            2
+          ],
+          [
+            "22170",
+            2
+          ],
+          [
+            "22171",
+            2
+          ],
+          [
+            "22423",
+            2
+          ],
+          [
+            "22456",
+            2
+          ]
+        ],
+        "recommended": [
+          "85123A",
+          "82494L",
+          "47566",
+          "22961",
+          "21212",
+          "23298",
+          "22457",
+          "23209",
+          "20725",
+          "84991"
+        ],
+        "heldOut": [
+          "20749",
+          "21484",
+          "21485",
+          "22138",
+          "22326",
+          "22557",
+          "22585",
+          "22617",
+          "22625",
+          "22667",
+          "22726",
+          "22727",
+          "22728",
+          "22730",
+          "23208",
+          "23293",
+          "23296",
+          "23311",
+          "48184",
+          "84030E"
+        ],
+        "hits": []
+      },
+      {
+        "customer": "公开会员-f996e783",
+        "history": [
+          [
+            "20712",
+            1
+          ],
+          [
+            "21733",
+            1
+          ],
+          [
+            "21929",
+            1
+          ],
+          [
+            "21977",
+            1
+          ],
+          [
+            "21985",
+            1
+          ]
+        ],
+        "recommended": [
+          "85099B",
+          "21212",
+          "22910",
+          "84991",
+          "23307",
+          "21975",
+          "23202",
+          "23209",
+          "22411",
+          "23293"
+        ],
+        "heldOut": [
+          "21479",
+          "22791",
+          "23323",
+          "84836"
+        ],
+        "hits": []
+      },
+      {
+        "customer": "公开会员-96881850",
+        "history": [
+          [
+            "20712",
+            3
+          ],
+          [
+            "20727",
+            3
+          ],
+          [
+            "21479",
+            2
+          ],
+          [
+            "21481",
+            2
+          ],
+          [
+            "22355",
+            2
+          ]
+        ],
+        "recommended": [
+          "20725",
+          "20724",
+          "85099B",
+          "22662",
+          "23208",
+          "22386",
+          "23207",
+          "23202",
+          "23204",
+          "22385"
+        ],
+        "heldOut": [
+          "23344"
+        ],
+        "hits": []
+      }
+    ],
+    "scope": "UK positive purchase invoices with a CustomerID; candidate catalog is top products by training invoice frequency; both methods exclude training purchases. Metrics are macro averaged over warm users with eligible held-out items.",
+    "limits": [
+      "This is a historical single-retailer offline benchmark, not online uplift.",
+      "Returns/cancellations are reported separately and excluded from positive-purchase recommendation evaluation.",
+      "No product cost, inventory, impression or promotion assignment is available.",
+      "Users whose future unseen items fall outside the training top catalog do not enter metric denominators; coverage is shown explicitly.",
+      "Bootstrap intervals describe variability across evaluated users, not causal business effects."
+    ]
+  },
+  "productNames": {
+    "20712": "JUMBO BAG WOODLAND ANIMALS",
+    "20724": "RED RETROSPOT CHARLOTTE BAG",
+    "20725": "LUNCH BAG RED RETROSPOT",
+    "20727": "LUNCH BAG  BLACK SKULL.",
+    "20749": "ASSORTED COLOUR MINI CASES",
+    "20750": "RED RETROSPOT MINI CASES",
+    "21034": "REX CASH+CARRY JUMBO SHOPPER",
+    "21136": "PAINTED METAL PEARS ASSORTED",
+    "21137": "BLACK RECORD COVER FRAME",
+    "21212": "PACK OF 72 RETROSPOT CAKE CASES",
+    "21385": "IVORY HANGING DECORATION  HEART",
+    "21479": "WHITE SKULL HOT WATER BOTTLE",
+    "21481": "FAWN BLUE HOT WATER BOTTLE",
+    "21484": "CHICK GREY HOT WATER BOTTLE",
+    "21485": "RETROSPOT HEART HOT WATER BOTTLE",
+    "21498": "RED RETROSPOT WRAP",
+    "21670": "BLUE SPOT CERAMIC DRAWER KNOB",
+    "21733": "RED HANGING HEART T-LIGHT HOLDER",
+    "21755": "LOVE BUILDING BLOCK WORD",
+    "21918": "SET 12 KIDS COLOUR  CHALK STICKS",
+    "21928": "JUMBO BAG SCANDINAVIAN BLUE PAISLEY",
+    "21929": "JUMBO BAG PINK VINTAGE PAISLEY",
+    "21930": "JUMBO STORAGE BAG SKULLS",
+    "21931": "JUMBO STORAGE BAG SUKI",
+    "21975": "PACK OF 60 DINOSAUR CAKE CASES",
+    "21977": "PACK OF 60 PINK PAISLEY CAKE CASES",
+    "21985": "PACK OF 12 HEARTS DESIGN TISSUES",
+    "22041": "RECORD FRAME 7\" SINGLE SIZE",
+    "22077": "6 RIBBONS RUSTIC CHARM",
+    "22114": "HOT WATER BOTTLE TEA AND SYMPATHY",
+    "22138": "BAKING SET 9 PIECE RETROSPOT",
+    "22169": "FAMILY ALBUM WHITE PICTURE FRAME",
+    "22170": "PICTURE FRAME WOOD TRIPLE PORTRAIT",
+    "22171": "3 HOOK PHOTO SHELF ANTIQUE WHITE",
+    "22191": "IVORY DINER WALL CLOCK",
+    "22197": "POPCORN HOLDER",
+    "22326": "ROUND SNACK BOXES SET OF4 WOODLAND",
+    "22355": "CHARLOTTE BAG SUKI DESIGN",
+    "22385": "JUMBO BAG SPACEBOY DESIGN",
+    "22386": "JUMBO BAG PINK POLKADOT",
+    "22411": "JUMBO SHOPPER VINTAGE RED PAISLEY",
+    "22413": "METAL SIGN TAKE IT OR LEAVE IT",
+    "22418": "10 COLOUR SPACEBOY PEN",
+    "22423": "REGENCY CAKESTAND 3 TIER",
+    "22456": "NATURAL SLATE CHALKBOARD LARGE",
+    "22457": "NATURAL SLATE HEART CHALKBOARD",
+    "22470": "HEART OF WICKER LARGE",
+    "22487": "WHITE WOOD GARDEN PLANT LADDER",
+    "22557": "PLASTERS IN TIN VINTAGE PAISLEY",
+    "22585": "PACK OF 6 BIRDY GIFT TAGS",
+    "22617": "BAKING SET SPACEBOY DESIGN",
+    "22619": "SET OF 6 SOLDIER SKITTLES",
+    "22625": "RED KITCHEN SCALES",
+    "22652": "TRAVEL SEWING KIT",
+    "22662": "LUNCH BAG DOLLY GIRL DESIGN",
+    "22667": "RECIPE BOX RETROSPOT",
+    "22726": "ALARM CLOCK BAKELIKE GREEN",
+    "22727": "ALARM CLOCK BAKELIKE RED",
+    "22728": "ALARM CLOCK BAKELIKE PINK",
+    "22730": "ALARM CLOCK BAKELIKE IVORY",
+    "22751": "FELTCRAFT PRINCESS OLIVIA DOLL",
+    "22791": "T-LIGHT GLASS FLUTED ANTIQUE",
+    "22910": "PAPER CHAIN KIT VINTAGE CHRISTMAS",
+    "22961": "JAM MAKING SET PRINTED",
+    "22966": "GINGERBREAD MAN COOKIE CUTTER",
+    "22993": "SET OF 4 PANTRY JELLY MOULDS",
+    "23103": "JINGLE BELL HEART DECORATION",
+    "23144": "ZINC T-LIGHT HOLDER STARS SMALL",
+    "23188": "VINTAGE  2 METRE FOLDING RULER",
+    "23202": "JUMBO BAG VINTAGE LEAF",
+    "23203": "JUMBO BAG VINTAGE DOILY",
+    "23204": "CHARLOTTE BAG APPLES DESIGN",
+    "23207": "LUNCH BAG ALPHABET DESIGN",
+    "23208": "LUNCH BAG VINTAGE LEAF DESIGN",
+    "23209": "LUNCH BAG VINTAGE DOILY",
+    "23293": "SET OF 12 FAIRY CAKE BAKING CASES",
+    "23296": "SET OF 6 TEA TIME BAKING CASES",
+    "23298": "SPOTTY BUNTING",
+    "23307": "SET OF 60 PANTRY DESIGN CAKE CASES",
+    "23311": "VINTAGE CHRISTMAS STOCKING",
+    "23322": "LARGE WHITE HEART OF WICKER",
+    "23323": "WHITE WICKER STAR",
+    "23344": "JUMBO BAG 50'S CHRISTMAS",
+    "23439": "HAND WARMER RED LOVE HEART",
+    "23503": "PLAYING CARDS KEEP CALM & CARRY ON",
+    "47566": "PARTY BUNTING",
+    "48184": "DOORMAT ENGLISH ROSE",
+    "82482": "WOODEN PICTURE FRAME WHITE FINISH",
+    "82483": "WOOD 2 DRAWER CABINET WHITE FINISH",
+    "82484": "WOOD BLACK BOARD ANT WHITE FINISH",
+    "82494L": "WOODEN FRAME ANTIQUE WHITE",
+    "82551": "LAUNDRY 15C METAL SIGN",
+    "82580": "BATHROOM METAL SIGN",
+    "82581": "TOILET METAL SIGN",
+    "82583": "HOT BATHS METAL SIGN",
+    "84030E": "ENGLISH ROSE HOT WATER BOTTLE",
+    "84836": "ZINC METAL HEART DECORATION",
+    "84879": "ASSORTED COLOUR BIRD ORNAMENT",
+    "84991": "60 TEATIME FAIRY CAKE CASES",
+    "85099B": "JUMBO BAG RED RETROSPOT",
+    "85099C": "JUMBO  BAG BAROQUE BLACK WHITE",
+    "85123A": "CREAM HANGING HEART T-LIGHT HOLDER"
+  },
+  "methodology": {
+    "rowFilter": "Exclude missing required values, invalid numerics/dates, non-positive prices, zero quantities and listed non-merchandise StockCodes. Source duplicate rows are retained; the dataset does not identify them as accidental duplicates.",
+    "excludedStockCodes": [
+      "AMAZONFEE",
+      "BANK CHARGES",
+      "C2",
+      "CRUK",
+      "D",
+      "DOT",
+      "M",
+      "PADS",
+      "POST",
+      "S"
+    ],
+    "amounts": "Quantity × unit price, integer pence after per-unit decimal rounding. Cancellation amounts recorded on their own invoice dates; not matched back to original purchases.",
+    "missingCustomer": "Included in business aggregates but excluded from user-level recommendation evaluation.",
+    "knownLimits": "No margin/cost, inventory, store traffic, pricing treatment or current market information. December 2011 is incomplete; do not compare it as a full month."
+  }
+}

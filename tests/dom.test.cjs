@@ -28,6 +28,8 @@ function boot() {
     "core.js",
     "advanced.js",
     "advanced-ui.js",
+    "public-data.js",
+    "real-ui.js",
     "app.js",
   ])
     w.eval(fs.readFileSync(path.join(root, "dist", file), "utf8"));
@@ -50,6 +52,176 @@ function boot() {
   };
   return { dom, w, $, click, submit, input, go };
 }
+
+test("public historical data has distinct currency, dates, source and metrics", async () => {
+  const t = boot();
+  try {
+    await t.go("strategy");
+    t.click('[data-tab="public"]');
+    assert.equal(t.$(".header-right .badge").textContent, "公开历史数据");
+    assert.match(t.$(".asof").textContent, /2011-12-09/);
+    assert.match(t.$("#main").textContent, /541,909/);
+    assert.match(t.$("#main").textContent, /0.102637/);
+    assert.ok(t.$('#main a[href*="archive.ics.uci.edu"]'));
+    assert.match(t.$("#main").textContent, /CC BY 4.0/);
+    assert.match(t.$("#main").textContent, /36.49%/);
+    assert.ok(t.$("#publicModelQuestion"));
+  } finally {
+    t.dom.window.close();
+  }
+});
+
+test("AI settings perform no automatic inference and keep access code out of storage", async () => {
+  const t = boot();
+  let posts = 0,
+    seenCode;
+  t.w.fetch = async (path, options = {}) => {
+    if (options.method === "POST") {
+      posts++;
+      seenCode = options.headers["X-Retail-Demo-Code"];
+      return {
+        ok: true,
+        json: async () => ({
+          generation: {
+            model: "qwen4-max",
+            latencyMs: 100,
+            usage: { total_tokens: 7 },
+          },
+        }),
+      };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        modelConfigured: true,
+        model: "qwen4-max",
+        connectionVerified: false,
+        accessCodeRequired: true,
+        accessCodeConfigured: true,
+        callsUsed: 0,
+        maxCallsPerProcess: 20,
+        maxOutputTokens: 1800,
+      }),
+    };
+  };
+  try {
+    t.click('[data-real-action="model-panel"]');
+    await sleep(30);
+    assert.equal(posts, 0);
+    t.input("#accessCodeForm input", "demo-code-for-test");
+    t.submit("#accessCodeForm");
+    assert.equal(t.$("#accessCodeForm input").value, "");
+    assert.ok(!JSON.stringify(t.w.localStorage).includes("demo-code-for-test"));
+    t.click('[data-real-action="probe-model"]');
+    await sleep(30);
+    assert.equal(posts, 1);
+    assert.equal(seenCode, "demo-code-for-test");
+    assert.match(t.$("#modelProbeResult").textContent, /qwen4-max/);
+  } finally {
+    t.dom.window.close();
+  }
+});
+
+test("quoted model report is escaped, auditable and retained when the next request fails", async () => {
+  const t = boot();
+  let count = 0;
+  const report = {
+    question: "公开分析",
+    summary: "模型结果 <img src=x onerror=bad()>",
+    findings: [
+      {
+        statement: "源数据记录历史零售交易。",
+        quotes: [{ sourceId: "UCI-01", quote: "历史交易" }],
+      },
+    ],
+    hypotheses: ["需要验证"],
+    actions: ["开展试点"],
+    sources: [{ id: "UCI-01", title: "来源", text: "历史交易数据" }],
+    generation: {
+      requestId: "test-live-001",
+      model: "qwen4-max",
+      latencyMs: 100,
+      usage: { total_tokens: 30 },
+    },
+    limits: "仍需人工复核",
+  };
+  t.w.fetch = async () => {
+    count++;
+    return count === 1
+      ? { ok: true, json: async () => ({ report }) }
+      : {
+          ok: false,
+          json: async () => ({
+            error: "免费额度已用尽",
+            errorCode: "free_quota_exhausted",
+          }),
+        };
+  };
+  try {
+    await t.go("strategy");
+    t.click('[data-tab="public"]');
+    t.click('[data-real-action="research-public"]');
+    await sleep(40);
+    assert.match(t.$("#publicModelReport").textContent, /模型结果/);
+    assert.equal(t.$("#publicModelReport img"), null);
+    assert.ok(t.$('#publicModelReport [data-live-request="test-live-001"]'));
+    t.click('[data-real-action="research-public"]');
+    await sleep(40);
+    assert.match(t.$("#publicModelReport").textContent, /免费额度已用尽/);
+    assert.match(t.$("#publicModelReport").textContent, /模型结果/);
+    assert.ok(
+      JSON.parse(t.w.localStorage.getItem("retail-v2-audit")).some(
+        (x) => x.module === "模型引用研究",
+      ),
+    );
+  } finally {
+    t.dom.window.close();
+  }
+});
+
+test("late research output is discarded when its question has changed", async () => {
+  const t = boot();
+  let resolveRequest;
+  t.w.fetch = () =>
+    new Promise((resolve) => {
+      resolveRequest = resolve;
+    });
+  try {
+    await t.go("strategy");
+    t.click('[data-tab="public"]');
+    t.click('[data-real-action="research-public"]');
+    t.input("#publicModelQuestion", "请改为分析数据的局限性");
+    resolveRequest({
+      ok: true,
+      json: async () => ({ report: { summary: "旧问题的回答" } }),
+    });
+    await sleep(40);
+    assert.match(t.$("#publicModelReport").textContent, /迟到的模型结果未采用/);
+    assert.ok(!t.$("#publicModelReport").textContent.includes("旧问题的回答"));
+    assert.equal(t.$('[data-real-action="research-public"]').disabled, false);
+  } finally {
+    t.dom.window.close();
+  }
+});
+
+test("unsupported research question does not trigger a model call", async () => {
+  const t = boot();
+  let count = 0;
+  t.w.fetch = async () => {
+    count++;
+    throw new Error("should not call");
+  };
+  try {
+    await t.go("research");
+    t.input("#researchForm textarea", "量子纠缠实验");
+    t.click('[data-real-action="research-custom"]');
+    await sleep(30);
+    assert.equal(count, 0);
+    assert.match(t.$("#customModelReport").textContent, /本次未调用模型/);
+  } finally {
+    t.dom.window.close();
+  }
+});
 
 test("failed model calls preserve the previous script and restore retry controls", async () => {
   const t = boot();
